@@ -1,0 +1,48 @@
+-- ---------------------------------------------------------------------------
+-- Supabase + Row Level Security (RLS) — how this app relates to your DB role
+-- ---------------------------------------------------------------------------
+-- This platform talks to Postgres only through **DATABASE_URL** (Node `pg` from
+-- Next.js API routes / server actions / middleware). It does **not** attach a
+-- Supabase Auth JWT to queries, so policies that use `auth.uid()` do **not**
+-- automatically apply the logged-in dashboard user.
+--
+-- Typical outcomes when Supabase enables RLS “automatically”:
+-- 1) Connection as **postgres** (direct / pooler, full privileges): table owner /
+--    superuser usually **bypasses RLS** unless `FORCE ROW LEVEL SECURITY` is set.
+-- 2) Connection as a **non-owner, non-superuser** role: RLS applies. With no
+--    matching policy, **INSERT/SELECT/UPDATE can fail** (register, ingest, etc.).
+--
+-- What to do:
+-- A) **Preferred for this MVP:** use the **database user from Supabase →
+--    Project Settings → Database** (often the `postgres` role in the URI you
+--    paste into DATABASE_URL). Confirm inserts work; if they do, RLS is not
+--    blocking that role.
+--
+-- B) If you must use a restricted role, add **explicit policies** for that role
+--    on every WIP table (users, websites, traffic_sources, sessions, pageviews,
+--    events, web_vitals, uptime_checks, uptime_logs, alerts, analytics_daily_rollups),
+--    or grant **BYPASSRLS** to that role (superuser-only in managed Postgres).
+--
+-- C) **Dev-only escape hatch:** disable RLS on these tables (not for production
+--    if you expose the DB to PostgREST with the same tables). Uncomment below.
+-- ---------------------------------------------------------------------------
+
+-- Inspect which public tables have RLS on:
+-- SELECT relname AS table_name, relrowsecurity AS rls_enabled, relforcerowsecurity AS rls_forced
+-- FROM pg_class c
+-- JOIN pg_namespace n ON n.oid = c.relnamespace
+-- WHERE n.nspname = 'public' AND c.relkind = 'r'
+-- ORDER BY 1;
+
+-- Optional (MVP / private DB only): turn off RLS for WIP tables — uncomment to run.
+-- ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE websites DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE traffic_sources DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE sessions DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE pageviews DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE events DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE web_vitals DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE uptime_checks DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE uptime_logs DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE alerts DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE analytics_daily_rollups DISABLE ROW LEVEL SECURITY;

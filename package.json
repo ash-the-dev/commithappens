@@ -3,23 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "brand:assets": "node scripts/generate-brand-assets.cjs",
     "dev": "next dev",
+    "prebuild": "node scripts/generate-brand-assets.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "next": "16.2.4",
+    "next-auth": "^4.24.14",
+    "openai": "^6.34.0",
+    "pg": "^8.20.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

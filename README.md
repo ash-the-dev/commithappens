@@ -20,6 +20,22 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Ingest CORS allowlist
+
+The tracker ingest endpoint (`/api/v1/ingest`) only accepts cross-origin requests from allowed site origins.
+
+Set this environment variable in each deployment:
+
+```bash
+INGEST_ALLOWED_ORIGINS=https://www.ashthedev.com,https://www.example.com,https://example.org
+```
+
+Notes:
+
+- Use a comma-separated list of full origins (`scheme + host`, optional port).
+- Match each live site origin exactly (`https://site.com` and `https://www.site.com` are different).
+- If `INGEST_ALLOWED_ORIGINS` is not set, the default allowlist is `https://www.ashthedev.com`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -1,26 +1,308 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050505;
+  --foreground: #fafafa;
+  /* Averaged from pink strokes/fills in public/brand/commit-happens.png (logo asset). */
+  --brand: #f679d0;
+  --brand-muted: #ffa8e6;
+  --card: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.12);
+  /* Wave hero (Pretty Fly–style pink → purple → blue). */
+  --wave-pink: #f679d0;
+  --wave-purple: #a855f7;
+  --wave-blue: #3b82f6;
+  --wave-cyan: #22d3ee;
+}
+
+[data-theme="midnight-pop"] {
+  --brand: #f679d0;
+  --brand-muted: #ffa8e6;
+  --wave-pink: #f679d0;
+  --wave-purple: #a855f7;
+  --wave-blue: #3b82f6;
+  --wave-cyan: #22d3ee;
+}
+
+[data-theme="sunset-signal"] {
+  --brand: #fb923c;
+  --brand-muted: #fcd34d;
+  --wave-pink: #fb923c;
+  --wave-purple: #f59e0b;
+  --wave-blue: #ef4444;
+  --wave-cyan: #fbbf24;
+}
+
+[data-theme="neon-frost"] {
+  --brand: #22c55e;
+  --brand-muted: #93c5fd;
+  --wave-pink: #22c55e;
+  --wave-purple: #3b82f6;
+  --wave-blue: #e5f4ff;
+  --wave-cyan: #22d3ee;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-muted: var(--brand-muted);
+  --color-card: var(--card);
+  --color-border: var(--border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Shared premium surfaces (dark foundation with layered depth). */
+.ui-surface {
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 1rem;
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, white 8%, transparent) 0%,
+      color-mix(in srgb, white 0%, transparent) 28%
+    ),
+    var(--card);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 14px 30px -24px rgba(0, 0, 0, 0.9);
+}
+
+.ui-surface-soft {
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, black 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+/* Strategic light contrast modules for visual dimension and focal hierarchy. */
+.ui-surface-contrast {
+  border: 1px solid color-mix(in srgb, var(--brand) 18%, rgba(255, 255, 255, 0.65));
+  border-radius: 0.95rem;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(247, 247, 249, 0.93) 100%
+    );
+  color: #101114;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 18px 30px -24px rgba(0, 0, 0, 0.7),
+    0 0 0 1px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+.ui-contrast-muted {
+  color: rgba(17, 24, 39, 0.72);
+}
+
+.ui-chip {
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, black 60%, transparent);
+  padding: 0.125rem 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.ui-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, white 66%, transparent);
+}
+
+.ui-kpi-value {
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--brand) 35%, transparent);
+  color: var(--foreground);
+}
+
+/* Pink glow from site tokens (matches --brand everywhere). */
+.u-shadow-brand-card {
+  box-shadow: 0 0 40px -12px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+
+.u-shadow-brand-card-strong {
+  box-shadow: 0 0 40px -12px color-mix(in srgb, var(--brand) 35%, transparent);
+}
+
+.u-hover-site-card:hover {
+  box-shadow: 0 0 32px -16px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+/* Logo: soft halo only (same hue as --brand), no sweep / pulse — reads closer to the file. */
+.brand-logo-fx {
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brand) 38%, transparent))
+    drop-shadow(0 0 28px color-mix(in srgb, var(--brand) 18%, transparent));
+}
+
+@keyframes wave-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes wave-gradient-vert-shift {
+  0% {
+    background-position: 50% 0%;
+  }
+  100% {
+    background-position: 50% 100%;
+  }
+}
+
+/* Light halo on the top row only — heavy blur reads as a “stroke” on HAPPENS. */
+.wave-wordmark-wrap {
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--wave-purple) 22%, transparent));
+}
+
+/* Outline letters (COMM) — dark interior, neon pink stroke like the asset. */
+.wave-comm-outline {
+  color: var(--background);
+  -webkit-text-fill-color: var(--background);
+  -webkit-text-stroke-width: clamp(2px, 0.07em, 6px);
+  -webkit-text-stroke-color: var(--wave-pink);
+  paint-order: stroke fill;
+}
+
+.wave-comm-outline--compact {
+  -webkit-text-stroke-width: clamp(1.5px, 0.09em, 3px);
+}
+
+/* Filled letters (IT) — animated wave. */
+.wave-wordmark-gradient {
+  margin: 0;
+  background-image: linear-gradient(
+    92deg,
+    var(--wave-pink),
+    var(--wave-purple),
+    var(--wave-blue),
+    var(--wave-cyan),
+    var(--wave-pink)
+  );
+  background-size: 280% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: wave-gradient-shift 9s ease-in-out infinite;
+}
+
+.wave-wordmark-gradient--delay {
+  animation-delay: -4.2s;
+}
+
+/* Shared vertical paint (IT + HAPPENS) — phase offsets keep them out of sync. */
+.wave-it-gradient-vert {
+  margin: 0;
+  background-image: linear-gradient(
+    188deg,
+    var(--wave-cyan) 0%,
+    var(--wave-blue) 26%,
+    var(--wave-purple) 55%,
+    var(--wave-pink) 100%
+  );
+  background-size: 120% 240%;
+  background-position: 40% 35%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: wave-gradient-vert-shift 7.5s ease-in-out infinite alternate;
+}
+
+.wave-it-gradient-vert--phase {
+  animation-delay: -1.35s;
+}
+
+/*
+ * HAPPENS: fill only — saturated pink / purple / magenta only (no pale stops).
+ * Letter-spacing tightened here so hero + header stay in sync.
+ */
+.wave-happens-fill {
+  margin: 0;
+  letter-spacing: -0.04em;
+  -webkit-text-stroke: 0 transparent;
+  paint-order: normal;
+  background-image: linear-gradient(
+    100deg,
+    var(--wave-pink) 0%,
+    color-mix(in srgb, var(--wave-pink) 70%, var(--wave-purple) 30%) 22%,
+    var(--wave-purple) 48%,
+    var(--wave-blue) 72%,
+    var(--wave-cyan) 100%
+  );
+  background-size: 260% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: wave-gradient-shift 10.5s ease-in-out infinite;
+  animation-delay: -5.25s;
+}
+
+.theme-c-mark {
+  background-image: linear-gradient(
+    180deg,
+    var(--wave-cyan) 0%,
+    var(--wave-blue) 50%,
+    var(--wave-purple) 100%
+  );
+}
+
+/* Compact / solid fallback (e.g. one-line header if gradient skipped). */
+.wave-happens-solid {
+  margin: 0;
+  color: var(--wave-pink);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 28px color-mix(in srgb, var(--wave-pink) 32%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave-wordmark-gradient,
+  .wave-wordmark-gradient--delay {
+    animation: none;
+    background-position: 35% 50%;
+  }
+
+  .wave-it-gradient-vert,
+  .wave-it-gradient-vert--phase {
+    animation: none;
+    background-position: 50% 45%;
+  }
+
+  .wave-happens-fill {
+    animation: none;
+    background-position: 38% 50%;
+  }
+}
+
+/* Neo-brutalist grid (hero). */
+.hero-grid-bg {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(ellipse 85% 70% at 50% 40%, black 20%, transparent 72%);
 }
