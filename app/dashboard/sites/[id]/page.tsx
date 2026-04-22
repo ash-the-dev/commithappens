@@ -199,7 +199,7 @@ export default async function SiteDetailPage({ params }: Props) {
         title="Remove this site (no fake drama, just consequences)"
         subtitle="This removes the property from your dashboard. Existing rows stay in the database for now, but the tracker stops accepting new events for this key."
       >
-        <DeleteSiteButton tone="light" siteId={site.id} siteName={site.name} />
+        <DeleteSiteButton siteId={site.id} siteName={site.name} />
       </DashboardSection>
     </main>
   );
