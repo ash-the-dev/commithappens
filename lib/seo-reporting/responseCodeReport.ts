@@ -23,7 +23,7 @@ type ResponseCodeParseResultLike = {
   summary: ResponseCodeParseSummary;
   severity: ResponseCodeParseSeverity;
   rows: unknown[];
-  issues: unknown[];
+  issues: Array<Record<string, unknown>>;
   errors: unknown[];
 };
 
