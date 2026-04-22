@@ -1,0 +1,5 @@
+"Address","Content Type","Status Code","Status"
+"https://example.com/ok","text/html",200,"OK"
+"https://example.com/moved","text/html",301,"Moved Permanently"
+"https://example.com/missing","text/html",404,"Not Found"
+"https://example.com/error","text/html",500,"Internal Server Error"

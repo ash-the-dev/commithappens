@@ -5,6 +5,7 @@ import { getRequestOrigin } from "@/lib/app-url";
 import { authOptions } from "@/lib/auth/options";
 import { LiveActivityCard } from "@/components/dashboard/LiveActivityCard";
 import { SiteAnalyticsCharts } from "@/components/dashboard/SiteAnalyticsCharts";
+import { SiteSeoHealth } from "@/components/dashboard/SiteSeoHealth";
 import { getSiteAnalytics, getSiteLiveActivity } from "@/lib/db/analytics";
 import { DeleteSiteButton } from "@/components/dashboard/DeleteSiteButton";
 import { SiteInsightsCard } from "@/components/dashboard/SiteInsightsCard";
@@ -39,6 +40,8 @@ import {
   syncWebsiteNotifications,
 } from "@/lib/db/notifications";
 import { getCaseWorkbenchData } from "@/lib/db/cases";
+import { DashboardSection } from "@/components/dashboard/DashboardSection";
+import { ResponseCodeDashboardCard } from "@/components/dashboard/ResponseCodeDashboardCard";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -118,38 +121,44 @@ export default async function SiteDetailPage({ params }: Props) {
         <p className="mt-2 text-sm text-brand-muted">{site.primary_domain}</p>
       </div>
 
-      <section className="ui-surface space-y-3 p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-white/60">
-          Tracking snippet
-        </h2>
-        <p className="text-sm text-white/55">
-          Paste before <code className="text-brand">{"</body>"}</code> on every page
-          you want to measure. Requests go to{" "}
-          <span className="font-mono text-xs text-white/70">{origin}</span>.
-        </p>
-        <pre className="overflow-x-auto rounded-xl border border-border bg-black p-4 text-xs leading-relaxed text-white/80">
+      <DashboardSection
+        kicker="Install"
+        title="Paste this. Commit. Sleep slightly better."
+        subtitle={
+          <>
+            Put it before <span className="font-semibold text-slate-900">{"</body>"}</span> on every page you want
+            measured. Requests go to{" "}
+            <span className="font-mono text-xs font-semibold text-slate-900">{origin}</span>.
+          </>
+        }
+        meta="If this isn’t on a page, that page doesn’t exist to analytics. Harsh, but fair."
+      >
+        <pre className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-slate-950 p-4 text-xs leading-relaxed text-white/85">
           <code>{snippet}</code>
         </pre>
-        <p className="text-xs text-white/45">
-          Public key (also in <code className="text-brand">data-site-key</code>):
-        </p>
-        <p className="break-all font-mono text-xs text-white/70">
-          {site.tracking_public_key}
-        </p>
-      </section>
-
-      <section className="ui-surface space-y-4 p-6">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-white/65">
-            What your site is doing
-          </h2>
-          <p className="mt-2 text-sm text-white/55">
-            You shipped code. This is what happened after: traffic, speed, uptime,
-            and signs something got weird.
+        <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Public key</p>
+          <p className="mt-2 text-xs text-slate-700">
+            Also duplicated as <span className="font-semibold text-slate-900">data-site-key</span> — this is how we
+            know which site the events belong to.
+          </p>
+          <p className="mt-2 break-all font-mono text-xs font-semibold text-slate-950">
+            {site.tracking_public_key}
           </p>
         </div>
+      </DashboardSection>
+
+      <DashboardSection
+        kicker="Reality check"
+        title="Here’s what actually happened."
+        subtitle="You pushed. The internet reacted. This is the fallout: traffic, speed signals, and whether your site stayed online like a grown-up."
+      >
         <SiteAnalyticsCharts analytics={analytics} />
-      </section>
+      </DashboardSection>
+
+      <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
+
+      <ResponseCodeDashboardCard />
 
       <SiteInsightsCard insights={insights} />
 
@@ -184,19 +193,14 @@ export default async function SiteDetailPage({ params }: Props) {
 
       <LiveActivityCard items={liveActivity} />
 
-      <section className="ui-surface rounded-2xl border-red-500/25 bg-card/40 p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-red-200/90">
-          Remove site
-        </h2>
-        <p className="mt-2 text-sm text-white/55">
-          Removes this property from your dashboard. Existing rows stay in the
-          database for now, but the tracker will stop accepting new events for this
-          key.
-        </p>
-        <div className="mt-4">
-          <DeleteSiteButton siteId={site.id} siteName={site.name} />
-        </div>
-      </section>
+      <DashboardSection
+        emphasis="red"
+        kicker="Danger zone"
+        title="Remove this site (no fake drama, just consequences)"
+        subtitle="This removes the property from your dashboard. Existing rows stay in the database for now, but the tracker stops accepting new events for this key."
+      >
+        <DeleteSiteButton tone="light" siteId={site.id} siteName={site.name} />
+      </DashboardSection>
     </main>
   );
 }
