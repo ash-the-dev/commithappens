@@ -1,34 +1,17 @@
-import { parseResponseCodes } from "@/lib/seo-parser";
-import { buildResponseCodeInsights } from "@/lib/seo-insights/responseCodeInsights";
-import { buildResponseCodeVoice } from "@/lib/seo-voice/responseCodeVoice";
+import {
+  buildResponseCodeReportFromFile as buildSharedReportFromFile,
+  buildResponseCodeReportFromParsed,
+  type ParsedResponseCodes,
+} from "@/lib/seo/response-codes";
 
-type ResponseCodeParseSummary = {
-  totalUrls: number;
-  healthy: number;
-  redirects: number;
-  clientErrors: number;
-  serverErrors: number;
-  other: number;
-};
+type ResponseCodeParseResultLike = ParsedResponseCodes;
 
-type ResponseCodeParseSeverity = {
-  critical: number;
-  warning: number;
-  healthy: number;
-  info: number;
-};
-
-type ResponseCodeParseResultLike = {
-  source: string;
-  summary: ResponseCodeParseSummary;
-  severity: ResponseCodeParseSeverity;
-  rows: unknown[];
-  issues: Array<Record<string, unknown>>;
-  errors: unknown[];
-};
-
-type ResponseCodeInsightsResult = ReturnType<typeof buildResponseCodeInsights>;
-type ResponseCodeVoiceResult = ReturnType<typeof buildResponseCodeVoice>;
+type ResponseCodeInsightsResult = ReturnType<
+  typeof buildResponseCodeReportFromParsed
+>["insights"];
+type ResponseCodeVoiceResult = ReturnType<
+  typeof buildResponseCodeReportFromParsed
+>["voice"];
 
 export type ResponseCodeReport = {
   raw: ResponseCodeParseResultLike;
@@ -88,21 +71,13 @@ export function buildResponseCodeReportFromParseResult(
   parseResult: unknown,
 ): ResponseCodeReport {
   const raw = isParseResultLike(parseResult) ? parseResult : emptyRaw();
-  const insights = buildResponseCodeInsights(raw);
-  const voice = buildResponseCodeVoice(insights);
-
-  return {
-    raw,
-    insights,
-    voice,
-  };
+  return buildResponseCodeReportFromParsed(raw);
 }
 
 export async function buildResponseCodeReportFromFile(
   filePath: string,
 ): Promise<ResponseCodeReport> {
-  const parseResult = await parseResponseCodes(filePath);
-  return buildResponseCodeReportFromParseResult(parseResult);
+  return buildSharedReportFromFile(filePath);
 }
 
 /**
