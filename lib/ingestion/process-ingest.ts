@@ -269,6 +269,7 @@ async function getOrCreateTrafficSourceId(
     return select.rows[0].id;
   }
 
+  await client.query("SAVEPOINT traffic_source_insert_attempt");
   try {
     const inserted = await client.query<{ id: string }>(
       `INSERT INTO traffic_sources (
@@ -286,8 +287,11 @@ async function getOrCreateTrafficSourceId(
         fp.utmContent,
       ],
     );
+    await client.query("RELEASE SAVEPOINT traffic_source_insert_attempt");
     return inserted.rows[0].id;
   } catch (err) {
+    await client.query("ROLLBACK TO SAVEPOINT traffic_source_insert_attempt");
+    await client.query("RELEASE SAVEPOINT traffic_source_insert_attempt");
     if (!isPgUniqueViolation(err)) throw err;
     const retry = await client.query<{ id: string }>(
       `SELECT id FROM traffic_sources
@@ -401,6 +405,7 @@ export async function persistIngestBatch(
       }
 
       try {
+        await client.query("SAVEPOINT session_insert_attempt");
         const { channel, referrerHost } = classifyTrafficChannel(
           primaryDomain,
           payload.attribution,
@@ -442,9 +447,12 @@ export async function persistIngestBatch(
             deviceType,
           ],
         );
+        await client.query("RELEASE SAVEPOINT session_insert_attempt");
         sessionId = inserted.rows[0].id;
         sessionReady = true;
       } catch (err) {
+        await client.query("ROLLBACK TO SAVEPOINT session_insert_attempt");
+        await client.query("RELEASE SAVEPOINT session_insert_attempt");
         if (isPgUniqueViolation(err)) {
           continue;
         }

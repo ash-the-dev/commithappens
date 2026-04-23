@@ -22,7 +22,7 @@ export default async function DashboardLayout({
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 md:gap-6">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-5 md:gap-8 lg:gap-10">
             <CommitHappensMark
-              href="/dashboard"
+              href="/"
               variant="dashboard"
               scale="dashboardXL"
             />

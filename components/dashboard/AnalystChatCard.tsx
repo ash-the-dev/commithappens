@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AnalystAnswerView } from "@/components/dashboard/AnalystAnswerView";
 import type { DashboardAnswerResult } from "@/lib/ai/types";
+import { DashboardSection } from "@/components/dashboard/DashboardSection";
 
 type Props = {
   websiteId: string;
@@ -63,34 +64,27 @@ export function AnalystChatCard({ websiteId }: Props) {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-white/65">
-            Ask your dashboard
-          </h2>
-          <p className="mt-2 text-sm text-white/65">
-            Ask focused questions about summary, spikes, threats, changes, performance, uptime, or recommended actions.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-col gap-3">
+    <DashboardSection
+      kicker="Ask"
+      title="Ask your dashboard (no oracle cosplay)"
+      subtitle="Grounded answers about this site: summary, spikes, threats, changes, performance, uptime, and what to do next."
+    >
+      <div className="flex flex-col gap-3">
         <textarea
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           maxLength={400}
           rows={3}
-          className="w-full rounded-xl border border-border/70 bg-black/30 px-3 py-2 text-sm text-white outline-none transition focus:border-brand/70"
+          className="w-full rounded-2xl border border-slate-200/90 bg-white/80 px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-fuchsia-400/60"
           placeholder="Ask a question about this site..."
         />
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white/45">{question.trim().length}/400</span>
+          <span className="text-xs text-slate-600">{question.trim().length}/400</span>
           <button
             type="button"
             onClick={() => askDashboard()}
             disabled={!canAsk}
-            className="rounded-full border border-brand/60 bg-brand/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-brand transition enabled:hover:bg-brand/25 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-fuchsia-400/45 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-fuchsia-950 transition enabled:hover:bg-fuchsia-500/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Analyzing..." : "Ask"}
           </button>
@@ -104,7 +98,7 @@ export function AnalystChatCard({ websiteId }: Props) {
             type="button"
             onClick={() => askDashboard(prompt)}
             disabled={loading}
-            className="rounded-full border border-border/70 bg-black/25 px-3 py-1 text-xs text-white/80 transition hover:border-brand/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-slate-200/90 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-800 transition hover:border-fuchsia-400/45 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {prompt}
           </button>
@@ -112,7 +106,7 @@ export function AnalystChatCard({ websiteId }: Props) {
       </div>
 
       {error ? (
-        <p className="mt-4 text-sm text-red-200/85">
+        <p className="mt-4 text-sm text-rose-800">
           Unable to answer this question right now ({error}). Try again with a supported dashboard question.
         </p>
       ) : null}
@@ -120,11 +114,11 @@ export function AnalystChatCard({ websiteId }: Props) {
       {result ? (
         <AnalystAnswerView result={result} />
       ) : (
-        <p className="mt-4 text-sm text-white/55">
-          No question asked yet. Try one of the suggested prompts for a grounded dashboard answer.
+        <p className="mt-4 text-sm text-slate-700">
+          No question asked yet. Try a suggested prompt — it’s like a cheat code for not typing.
         </p>
       )}
-    </section>
+    </DashboardSection>
   );
 }
 

@@ -18,7 +18,11 @@
 
   function apiOrigin() {
     try {
-      return new URL(SCRIPT.src).origin;
+      var u = new URL(SCRIPT.src);
+      if (u.hostname === "commithappens.com") {
+        return "https://www.commithappens.com";
+      }
+      return u.origin;
     } catch {
       return "";
     }

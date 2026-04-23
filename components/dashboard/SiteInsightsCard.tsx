@@ -1,4 +1,5 @@
 import type { WebsiteInsights } from "@/lib/db/insights";
+import { DashboardSection } from "@/components/dashboard/DashboardSection";
 
 type Props = {
   insights: WebsiteInsights;
@@ -13,12 +14,12 @@ function badgeClass(flag: string): string {
     flag.includes("high_cls") ||
     flag.includes("high_inp")
   ) {
-    return "border-red-400/40 bg-red-500/10 text-red-100";
+    return "border-rose-400/45 bg-rose-500/10 text-rose-900";
   }
   if (flag.includes("spike")) {
-    return "border-amber-400/40 bg-amber-500/10 text-amber-100";
+    return "border-amber-400/45 bg-amber-500/10 text-amber-950";
   }
-  return "border-border/70 bg-black/25 text-white/80";
+  return "border-slate-200/90 bg-white/70 text-slate-800";
 }
 
 function formatFlag(flag: string): string {
@@ -32,25 +33,34 @@ export function SiteInsightsCard({ insights }: Props) {
     insights.detected_flags.length > 0;
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-white/65">
-        So... what happened?
-      </h2>
-
+    <DashboardSection
+      kicker="Situation report"
+      title="So… what happened?"
+      subtitle="Plain-English read on what moved, what looks off, and what deserves your attention — without pretending correlation is destiny."
+    >
       {!hasData ? (
-        <p className="mt-4 text-sm text-white/55">
-          {EMPTY_STATE_TEXT}
-        </p>
+        <p className="text-sm text-slate-700">{EMPTY_STATE_TEXT}</p>
       ) : (
         <>
-          <p className="mt-4 text-sm text-white/85">{insights.summary_text}</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">The takeaway</p>
+            <p className="mt-2 text-sm font-semibold text-slate-950">{insights.summary_text}</p>
+            <p className="mt-2 text-sm text-slate-700">
+              <span className="font-semibold">Why it matters:</span> this is the fastest way to notice “we shipped
+              something and the world responded weirdly.”
+            </p>
+            <p className="mt-2 text-sm text-slate-700">
+              <span className="font-semibold">Do this next:</span> if anything feels spicy, scroll to alerts + change
+              history — don’t panic-tweak SEO at 2am unless you enjoy suffering.
+            </p>
+          </div>
 
           {insights.key_points.length > 0 ? (
             <ul className="mt-4 space-y-2">
               {insights.key_points.map((point) => (
                 <li
                   key={point}
-                  className="rounded-xl border border-border/70 bg-black/25 px-3 py-2 text-sm text-white/75"
+                  className="rounded-2xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm text-slate-800"
                 >
                   {point}
                 </li>
@@ -74,24 +84,30 @@ export function SiteInsightsCard({ insights }: Props) {
           ) : null}
 
           {insights.latest_anomaly ? (
-            <div className="mt-5 rounded-xl border border-border/80 bg-black/25 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/60">
-                Anything weird happening?
+            <div className="mt-5 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+                Anything weird?
               </p>
-              <p className="mt-1 text-sm text-white/80">
-                {insights.latest_anomaly.date}: {insights.latest_anomaly.metric_type}{" "}
+              <p className="mt-2 text-sm text-slate-900">
+                <span className="font-semibold">What happened:</span> on {insights.latest_anomaly.date},{" "}
+                <span className="font-semibold">{insights.latest_anomaly.metric_type}</span> moved{" "}
                 {insights.latest_anomaly.percent_change > 0 ? "+" : ""}
                 {insights.latest_anomaly.percent_change.toFixed(1)}% vs baseline.
               </p>
               {insights.latest_spike_explanation?.factors[0] ? (
-                <p className="mt-1 text-xs text-white/60">
-                  Most likely reason: {insights.latest_spike_explanation.factors[0].label}
+                <p className="mt-2 text-sm text-slate-700">
+                  <span className="font-semibold">Most likely reason:</span>{" "}
+                  {insights.latest_spike_explanation.factors[0].label}
                 </p>
               ) : null}
+              <p className="mt-2 text-sm text-slate-700">
+                <span className="font-semibold">Do this next:</span> open the spike card below — it’s literally built
+                for “why did this go brrrr.”
+              </p>
             </div>
           ) : null}
         </>
       )}
-    </section>
+    </DashboardSection>
   );
 }

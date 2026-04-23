@@ -1,4 +1,5 @@
 import type { FlaggedActivityItem } from "@/lib/db/threats";
+import { DashboardSection } from "@/components/dashboard/DashboardSection";
 
 type Props = {
   items: FlaggedActivityItem[];
@@ -18,30 +19,29 @@ function timeAgo(iso: string): string {
 
 function severityClass(severity: FlaggedActivityItem["severity"]): string {
   if (severity === "high") {
-    return "border-red-400/50 bg-red-500/12 text-red-100";
+    return "border-rose-400/50 bg-rose-500/12 text-rose-950";
   }
   if (severity === "medium") {
-    return "border-amber-400/50 bg-amber-500/12 text-amber-100";
+    return "border-amber-400/50 bg-amber-500/12 text-amber-950";
   }
-  return "border-brand/45 bg-brand/10 text-brand";
+  return "border-fuchsia-400/45 bg-fuchsia-500/10 text-fuchsia-950";
 }
 
 export function FlaggedActivityCard({ items }: Props) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-white/65">
-        Sketchy activity
-      </h2>
+    <DashboardSection
+      kicker="Evidence"
+      title="Anything acting cursed?"
+      subtitle="A short list of the weirdest recent signals — not a judgment of your character."
+    >
       {items.length === 0 ? (
-        <p className="mt-4 text-sm text-white/55">
-          Everything looks pretty calm right now.
-        </p>
+        <p className="text-sm text-slate-700">No cursed energy detected. For now.</p>
       ) : (
-        <ul className="mt-4 space-y-3">
+        <ul className="space-y-3">
           {items.map((item) => (
             <li
               key={item.id}
-              className="rounded-xl border border-border/70 bg-black/25 px-3 py-2.5"
+              className="rounded-2xl border border-slate-200/80 bg-white/70 px-3 py-2.5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -53,22 +53,22 @@ export function FlaggedActivityCard({ items }: Props) {
                     >
                       {item.severity}
                     </span>
-                    <p className="truncate text-sm font-medium text-white">{item.description}</p>
+                    <p className="truncate text-sm font-medium text-slate-950">{item.description}</p>
                   </div>
                   {item.path ? (
-                    <p className="mt-1 truncate font-mono text-xs text-white/55">{item.path}</p>
+                    <p className="mt-1 truncate font-mono text-xs text-slate-600">{item.path}</p>
                   ) : item.event_name ? (
-                    <p className="mt-1 truncate text-xs text-white/55">
+                    <p className="mt-1 truncate text-xs text-slate-600">
                       event: {item.event_name}
                     </p>
                   ) : null}
                 </div>
-                <p className="shrink-0 text-xs text-white/50">{timeAgo(item.occurred_at)}</p>
+                <p className="shrink-0 text-xs text-slate-500">{timeAgo(item.occurred_at)}</p>
               </div>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </DashboardSection>
   );
 }

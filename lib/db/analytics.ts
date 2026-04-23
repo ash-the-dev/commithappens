@@ -11,6 +11,7 @@ type UptimeRow = {
 
 export type SiteAnalyticsOverview = {
   sessions24h: number;
+  sessions30d: number;
   pageviews24h: number;
   events24h: number;
   uniqueVisitors24h: number;
@@ -94,40 +95,42 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
   ] = await Promise.all([
     pool.query<{
       sessions_24h: string;
+      sessions_30d: string;
       pageviews_24h: string;
       events_24h: string;
       unique_visitors_24h: string;
     }>(
       `SELECT
          (SELECT count(*)::text FROM sessions s WHERE s.website_id = $1 AND s.started_at >= now() - interval '24 hours') AS sessions_24h,
+         (SELECT count(*)::text FROM sessions s WHERE s.website_id = $1 AND s.started_at >= now() - interval '30 days') AS sessions_30d,
          (SELECT count(*)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '24 hours') AS pageviews_24h,
          (SELECT count(*)::text FROM events e WHERE e.website_id = $1 AND e.occurred_at >= now() - interval '24 hours') AS events_24h,
          (SELECT count(DISTINCT s.visitor_key)::text FROM sessions s WHERE s.website_id = $1 AND s.started_at >= now() - interval '24 hours') AS unique_visitors_24h`,
       [websiteId],
     ),
     pool.query<CountByDay>(
-      `SELECT to_char(date_trunc('day', started_at), 'YYYY-MM-DD') AS day, count(*)::text AS count
+      `SELECT to_char((started_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, count(*)::text AS count
        FROM sessions
        WHERE website_id = $1
-         AND started_at >= now() - interval '14 days'
+         AND started_at >= now() - interval '30 days'
        GROUP BY 1
        ORDER BY 1`,
       [websiteId],
     ),
     pool.query<CountByDay>(
-      `SELECT to_char(date_trunc('day', occurred_at), 'YYYY-MM-DD') AS day, count(*)::text AS count
+      `SELECT to_char((occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, count(*)::text AS count
        FROM pageviews
        WHERE website_id = $1
-         AND occurred_at >= now() - interval '14 days'
+         AND occurred_at >= now() - interval '30 days'
        GROUP BY 1
        ORDER BY 1`,
       [websiteId],
     ),
     pool.query<CountByDay>(
-      `SELECT to_char(date_trunc('day', occurred_at), 'YYYY-MM-DD') AS day, count(*)::text AS count
+      `SELECT to_char((occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, count(*)::text AS count
        FROM events
        WHERE website_id = $1
-         AND occurred_at >= now() - interval '14 days'
+         AND occurred_at >= now() - interval '30 days'
        GROUP BY 1
        ORDER BY 1`,
       [websiteId],
@@ -164,7 +167,7 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
   ]);
 
   const overviewRow = overviewResult.rows[0];
-  const dayOrder = dayKeys(14);
+  const dayOrder = dayKeys(30);
   const sessionsMap = rowsToMap(sessionsDaily.rows);
   const pageviewsMap = rowsToMap(pageviewsDaily.rows);
   const eventsMap = rowsToMap(eventsDaily.rows);
@@ -200,6 +203,7 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
   return {
     overview: {
       sessions24h: Number(overviewRow?.sessions_24h || 0),
+      sessions30d: Number(overviewRow?.sessions_30d || 0),
       pageviews24h: Number(overviewRow?.pageviews_24h || 0),
       events24h: Number(overviewRow?.events_24h || 0),
       uniqueVisitors24h: Number(overviewRow?.unique_visitors_24h || 0),

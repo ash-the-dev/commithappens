@@ -42,6 +42,7 @@ import {
 import { getCaseWorkbenchData } from "@/lib/db/cases";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
 import { ResponseCodeDashboardCard } from "@/components/dashboard/ResponseCodeDashboardCard";
+import { RefreshPageDataButton } from "@/components/dashboard/RefreshPageDataButton";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -152,13 +153,14 @@ export default async function SiteDetailPage({ params }: Props) {
         kicker="Reality check"
         title="Here’s what actually happened."
         subtitle="You pushed. The internet reacted. This is the fallout: traffic, speed signals, and whether your site stayed online like a grown-up."
+        eyebrowRight={<RefreshPageDataButton idleLabel="Refresh stats" loadingLabel="Refreshing..." />}
       >
         <SiteAnalyticsCharts analytics={analytics} />
       </DashboardSection>
 
       <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
 
-      <ResponseCodeDashboardCard />
+      <ResponseCodeDashboardCard siteId={site.id} />
 
       <SiteInsightsCard insights={insights} />
 

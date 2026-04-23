@@ -1,4 +1,5 @@
 import type { ChangeImpactResult } from "@/lib/db/change-impact";
+import { DashboardSection } from "@/components/dashboard/DashboardSection";
 
 type Props = {
   impacts: ChangeImpactResult[];
@@ -27,24 +28,27 @@ function impactBadge(flag: string): string {
 
 export function ChangeImpactCard({ impacts }: Props) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-white/65">
-        What changed
-      </h2>
+    <DashboardSection
+      kicker="Change log"
+      title="What changed (and whether the internet cared)"
+      subtitle="Deployments without notes are just vibes. This is the receipts section."
+    >
       {impacts.length === 0 ? (
-        <p className="mt-4 text-sm text-white/55">No deploy notes yet. Track changes so this can call out what mattered.</p>
+        <p className="text-sm text-slate-700">
+          No deploy notes yet. Track changes so this can call out what mattered.
+        </p>
       ) : (
-        <ul className="mt-4 max-h-[460px] space-y-3 overflow-y-auto pr-1">
+        <ul className="max-h-[460px] space-y-3 overflow-y-auto pr-1">
           {impacts.map((impact) => (
             <li
               key={impact.change_log_id}
-              className="rounded-xl border border-border/70 bg-black/25 px-3 py-3"
+              className="rounded-2xl border border-slate-200/80 bg-white/70 px-3 py-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">{impact.title}</p>
-                  <p className="mt-1 text-xs text-white/60">{impact.summary}</p>
-                  <p className="mt-1 text-xs text-white/45">
+                  <p className="truncate text-sm font-semibold text-slate-950">{impact.title}</p>
+                  <p className="mt-1 text-xs text-slate-700">{impact.summary}</p>
+                  <p className="mt-1 text-xs text-slate-600">
                     Sessions {impact.metrics.sessions_before} → {impact.metrics.sessions_after} (
                     {impact.metrics.sessions_percent_change > 0 ? "+" : ""}
                     {impact.metrics.sessions_percent_change.toFixed(1)}%)
@@ -54,7 +58,7 @@ export function ChangeImpactCard({ impacts }: Props) {
                       {impact.flags.map((flag) => (
                         <span
                           key={`${impact.change_log_id}-${flag}`}
-                          className="rounded-full border border-border/70 bg-black/35 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/75"
+                          className="rounded-full border border-slate-200/90 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-800"
                         >
                           {impactBadge(flag)}
                         </span>
@@ -62,12 +66,12 @@ export function ChangeImpactCard({ impacts }: Props) {
                     </div>
                   ) : null}
                 </div>
-                <p className="shrink-0 text-xs text-white/50">{timeAgo(impact.created_at)}</p>
+                <p className="shrink-0 text-xs text-slate-500">{timeAgo(impact.created_at)}</p>
               </div>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </DashboardSection>
   );
 }

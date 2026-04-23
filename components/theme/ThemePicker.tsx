@@ -1,22 +1,39 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   DEFAULT_THEME,
   isThemeId,
   THEMES,
   THEME_STORAGE_KEY,
-  type ThemeId,
 } from "@/lib/theme/palettes";
 
+const THEME_EVENT = "commithappens-theme-change";
+
+function subscribeToTheme(onStoreChange: () => void): () => void {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(THEME_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(THEME_EVENT, onStoreChange);
+  };
+}
+
+function getClientThemeSnapshot() {
+  const raw = window.localStorage.getItem(THEME_STORAGE_KEY) ?? "";
+  return isThemeId(raw) ? raw : DEFAULT_THEME;
+}
+
+function getServerThemeSnapshot() {
+  return DEFAULT_THEME;
+}
+
 export function ThemePicker() {
-  const [themeId, setThemeId] = useState<ThemeId>(() => {
-    if (typeof window === "undefined") {
-      return DEFAULT_THEME;
-    }
-    const raw = window.localStorage.getItem(THEME_STORAGE_KEY) ?? "";
-    return isThemeId(raw) ? raw : DEFAULT_THEME;
-  });
+  const themeId = useSyncExternalStore(
+    subscribeToTheme,
+    getClientThemeSnapshot,
+    getServerThemeSnapshot,
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeId;
@@ -36,7 +53,9 @@ export function ThemePicker() {
       <button
         type="button"
         onClick={() => {
-          setThemeId(nextTheme.id);
+          document.documentElement.dataset.theme = nextTheme.id;
+          window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme.id);
+          window.dispatchEvent(new Event(THEME_EVENT));
         }}
         className="group relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-black/40 transition hover:border-brand/70"
         title={`Theme: ${activeTheme.label} (click to switch)`}

@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-const PRODUCTION_ORIGIN = "https://commithappens.com";
+const PRODUCTION_ORIGIN = "https://www.commithappens.com";
 
 function isLocalOrigin(value: string): boolean {
   return /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(value.trim());
@@ -12,11 +12,15 @@ function isLocalOrigin(value: string): boolean {
 export async function getRequestOrigin(): Promise<string> {
   const explicit = process.env.NEXTAUTH_URL?.trim();
   if (explicit && !isLocalOrigin(explicit)) {
-    return explicit.replace(/\/$/, "");
+    const value = explicit.replace(/\/$/, "");
+    return value === "https://commithappens.com" ? PRODUCTION_ORIGIN : value;
   }
   const vercel = process.env.VERCEL_URL?.trim();
   if (vercel) {
     const host = vercel.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    if (host === "commithappens.com") {
+      return PRODUCTION_ORIGIN;
+    }
     return `https://${host}`;
   }
   const h = await headers();
@@ -28,5 +32,8 @@ export async function getRequestOrigin(): Promise<string> {
   const proto =
     forwardedProto ??
     (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+  if (host === "commithappens.com") {
+    return PRODUCTION_ORIGIN;
+  }
   return `${proto}://${host}`;
 }

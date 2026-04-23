@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { DashboardNotification } from "@/lib/db/notifications";
+import { DashboardSection } from "@/components/dashboard/DashboardSection";
 
 type Props = {
   websiteId: string;
@@ -12,10 +13,10 @@ type Props = {
 type Filter = "all" | "unread" | "acknowledged" | "high_plus";
 
 function severityClass(severity: "critical" | "high" | "medium" | "low"): string {
-  if (severity === "critical") return "border-red-500/55 bg-red-600/15 text-red-100";
-  if (severity === "high") return "border-red-400/40 bg-red-500/10 text-red-100";
-  if (severity === "medium") return "border-amber-400/40 bg-amber-500/10 text-amber-100";
-  return "border-brand/40 bg-brand/10 text-brand";
+  if (severity === "critical") return "border-rose-500/55 bg-rose-600/15 text-rose-950";
+  if (severity === "high") return "border-rose-400/45 bg-rose-500/10 text-rose-900";
+  if (severity === "medium") return "border-amber-400/45 bg-amber-500/10 text-amber-950";
+  return "border-fuchsia-400/35 bg-fuchsia-500/10 text-fuchsia-950";
 }
 
 function timeAgo(iso: string): string {
@@ -75,27 +76,22 @@ export function NotificationCenterCard({ websiteId, notifications }: Props) {
 
   const unreadCount = notifications.filter((n) => n.status === "unread").length;
   return (
-    <section className="ui-surface p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-white/65">
-            Heads up
-          </h2>
-          <p className="mt-2 text-sm text-white/60">
-            Stuff worth your attention, without the noise.
-          </p>
-        </div>
+    <DashboardSection
+      kicker="Inbox"
+      title="Heads up"
+      subtitle="Stuff worth your attention — without turning your dashboard into a slot machine."
+      eyebrowRight={
         <button
           type="button"
           disabled={pending || unreadCount === 0}
           onClick={() => updateStatus("read_all")}
-          className="ui-chip px-3 py-1 text-white/75 transition hover:border-brand/55 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full border border-slate-200/90 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-800 transition hover:border-fuchsia-400/45 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Mark all read
         </button>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
+      }
+    >
+      <div className="flex flex-wrap gap-2">
         {[
           { id: "all", label: "All" },
           { id: "unread", label: "Unread" },
@@ -106,10 +102,10 @@ export function NotificationCenterCard({ websiteId, notifications }: Props) {
             key={tab.id}
             type="button"
             onClick={() => setFilter(tab.id as Filter)}
-            className={`ui-chip px-3 py-1 text-white/75 transition ${
+            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
               filter === tab.id
-                ? "border-brand/70 bg-brand/15 text-brand"
-                : "hover:border-brand/55"
+                ? "border-fuchsia-400/45 bg-fuchsia-500/10 text-fuchsia-950"
+                : "border-slate-200/90 bg-white/70 text-slate-800 hover:border-fuchsia-400/35"
             }`}
           >
             {tab.label}
@@ -118,15 +114,15 @@ export function NotificationCenterCard({ websiteId, notifications }: Props) {
       </div>
 
       {error ? (
-        <p className="mt-3 text-xs text-red-200/85">Action failed ({error}).</p>
+        <p className="mt-3 text-xs text-rose-800">Action failed ({error}).</p>
       ) : null}
 
       {filtered.length === 0 ? (
-        <p className="mt-4 text-sm text-white/55">Nothing important right now. Enjoy the peace.</p>
+        <p className="text-sm text-slate-700">Nothing important right now. Enjoy the peace.</p>
       ) : (
-        <ul className="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-1">
+        <ul className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
           {filtered.map((n) => (
-            <li key={n.id} className="ui-surface-soft p-4">
+            <li key={n.id} className="rounded-2xl border border-slate-200/80 bg-white/70 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${severityClass(
@@ -135,21 +131,21 @@ export function NotificationCenterCard({ websiteId, notifications }: Props) {
                 >
                   {n.severity}
                 </span>
-                <span className="ui-chip text-white/70">
+                <span className="rounded-full border border-slate-200/90 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
                   {n.category.replace(/_/g, " ")}
                 </span>
-                <span className="ui-chip text-white/70">
+                <span className="rounded-full border border-slate-200/90 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
                   {n.status}
                 </span>
-                <span className="text-xs text-white/45">{timeAgo(n.detected_at)}</span>
+                <span className="text-xs text-slate-500">{timeAgo(n.detected_at)}</span>
               </div>
-              <p className="mt-2 text-sm font-semibold text-white">{n.title}</p>
-              {n.summary ? <p className="mt-1 text-sm text-white/75">{n.summary}</p> : null}
+              <p className="mt-2 text-sm font-semibold text-slate-950">{n.title}</p>
+              {n.summary ? <p className="mt-1 text-sm text-slate-800">{n.summary}</p> : null}
 
               {n.evidence_points.length > 0 ? (
                 <ul className="mt-2 space-y-1">
                   {n.evidence_points.slice(0, 2).map((point) => (
-                    <li key={point} className="text-xs text-white/60">
+                    <li key={point} className="text-xs text-slate-600">
                       - {point}
                     </li>
                   ))}
@@ -161,7 +157,7 @@ export function NotificationCenterCard({ websiteId, notifications }: Props) {
                   type="button"
                   disabled={pending}
                   onClick={() => updateStatus("read", n.id)}
-                  className="ui-chip px-2.5 py-1 text-white/75 transition hover:border-brand/55 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full border border-slate-200/90 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-800 transition hover:border-fuchsia-400/45 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Mark read
                 </button>
@@ -169,7 +165,7 @@ export function NotificationCenterCard({ websiteId, notifications }: Props) {
                   type="button"
                   disabled={pending}
                   onClick={() => updateStatus("unread", n.id)}
-                  className="ui-chip px-2.5 py-1 text-white/75 transition hover:border-brand/55 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full border border-slate-200/90 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-800 transition hover:border-fuchsia-400/45 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Mark unread
                 </button>
@@ -177,7 +173,7 @@ export function NotificationCenterCard({ websiteId, notifications }: Props) {
                   type="button"
                   disabled={pending}
                   onClick={() => updateStatus("acknowledge", n.id)}
-                  className="ui-chip px-2.5 py-1 text-white/75 transition hover:border-brand/55 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full border border-slate-200/90 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-800 transition hover:border-fuchsia-400/45 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Acknowledge
                 </button>
@@ -186,7 +182,7 @@ export function NotificationCenterCard({ websiteId, notifications }: Props) {
           ))}
         </ul>
       )}
-    </section>
+    </DashboardSection>
   );
 }
 
