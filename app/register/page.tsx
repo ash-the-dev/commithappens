@@ -12,6 +12,12 @@ export default function RegisterPage() {
           </div>
           <h1 className="text-3xl font-semibold text-white">Create your account</h1>
           <p className="text-sm text-white/60">
+            Paid plans include a 7-day free trial.{" "}
+            <Link className="text-brand hover:underline" href="/pricing">
+              See pricing
+            </Link>
+          </p>
+          <p className="text-sm text-white/60">
             Already have an account?{" "}
             <Link className="text-brand hover:underline" href="/login">
               Sign in

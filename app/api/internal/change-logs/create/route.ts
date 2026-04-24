@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/options";
+import { requireIntelligenceForUser } from "@/lib/billing/intelligence-guard";
 import { createChangeLog } from "@/lib/db/change-logs";
 import { getWebsiteForUser } from "@/lib/db/websites";
 
@@ -24,6 +25,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!userId) {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
+
+  const entBlock = await requireIntelligenceForUser(userId, session.user.email);
+  if (entBlock) return entBlock;
 
   let body: Body;
   try {

@@ -37,9 +37,12 @@ export default function Home() {
       </header>
       <main className="relative flex flex-1 flex-col">
         <div className="pointer-events-none absolute inset-0 hero-grid-bg" aria-hidden />
+        <div className="pointer-events-none absolute inset-0 hero-grid-glow" aria-hidden />
         <div className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-10 px-6 py-14 md:py-20">
           <div className="space-y-7">
-            <WaveWordmark size="hero" />
+            <div className="animate-float-soft">
+              <WaveWordmark size="hero" />
+            </div>
             <p className="max-w-2xl text-xl font-semibold leading-snug tracking-tight text-white md:text-2xl">
               At least your code commits...unlike your ex.
             </p>
@@ -52,17 +55,53 @@ export default function Home() {
                   You pushed code. Did it actually do anything?
                 </h1>
                 <p className="mt-2 text-lg text-slate-700">
-                  Your site is doing stuff. We&apos;ll tell you what actually matters,
-                  in plain English.
+                  Your site is active. We show you what changed, what broke, and what
+                  actually matters — in plain English.
                 </p>
               </div>
             </div>
+            <div className="ui-surface hero-live-card max-w-3xl animate-float-soft p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/70">
+                Live preview intelligence
+              </p>
+              <div className="mt-3 space-y-2 text-sm text-white">
+                <p className="flex items-start gap-2">
+                  <span aria-hidden>🚨</span>
+                  <span>12 pages returning 404 errors (<span className="font-semibold text-rose-300">+5</span>)</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span aria-hidden>📉</span>
+                  <span>Health score dropped <span className="font-semibold text-rose-300">18%</span></span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span aria-hidden>🧵</span>
+                  <span>Redirect chain detected on <span className="font-mono text-xs text-cyan-200">/pricing</span></span>
+                </p>
+              </div>
+              <p className="mt-4 text-sm font-semibold text-brand-muted">Fix this in 3 steps</p>
+            </div>
+
+            <div className="grid gap-3 rounded-2xl border border-white/20 bg-white/8 p-4 backdrop-blur-md sm:grid-cols-3">
+              <div className="rounded-xl border border-white/20 bg-white/8 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/65">Step 1</p>
+                <p className="mt-2 text-sm font-semibold text-white">Add your site</p>
+              </div>
+              <div className="rounded-xl border border-white/20 bg-white/8 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/65">Step 2</p>
+                <p className="mt-2 text-sm font-semibold text-white">We crawl + analyze</p>
+              </div>
+              <div className="rounded-xl border border-white/20 bg-white/8 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/65">Step 3</p>
+                <p className="mt-2 text-sm font-semibold text-white">You fix what actually matters</p>
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-3 pt-2">
               <Link
-                href="/register"
+                href="/pricing"
                 className="u-shadow-brand-card rounded-full bg-brand px-6 py-3 text-sm font-semibold text-black transition hover:bg-brand-muted"
               >
-                Get started
+                Start 7-day free trial
               </Link>
               <Link
                 href="/login"
@@ -71,6 +110,9 @@ export default function Home() {
                 Sign in
               </Link>
             </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/65">
+              7 days free. Cancel before renewal anytime.
+            </p>
           </div>
         </div>
       </main>

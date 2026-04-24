@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import type { SiteLiveActivityItem } from "@/lib/db/analytics";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
 
@@ -18,6 +21,12 @@ function timeAgo(iso: string): string {
 }
 
 export function LiveActivityCard({ items }: Props) {
+  const [showAll, setShowAll] = useState(false);
+  const visibleItems = useMemo(
+    () => (showAll ? items : items.slice(0, 5)),
+    [items, showAll],
+  );
+
   return (
     <DashboardSection
       kicker="Live"
@@ -27,8 +36,9 @@ export function LiveActivityCard({ items }: Props) {
       {items.length === 0 ? (
         <p className="text-sm text-slate-700">Quiet. Either it’s calm, or the snippet isn’t where you think it is.</p>
       ) : (
-        <ul className="space-y-3">
-          {items.map((item) => (
+        <>
+          <ul className="space-y-3">
+          {visibleItems.map((item) => (
             <li
               key={`${item.type}-${item.id}`}
               className="rounded-2xl border border-slate-200/80 bg-white/70 px-3 py-2.5"
@@ -59,7 +69,17 @@ export function LiveActivityCard({ items }: Props) {
               </div>
             </li>
           ))}
-        </ul>
+          </ul>
+          {items.length > 5 ? (
+            <button
+              type="button"
+              onClick={() => setShowAll((prev) => !prev)}
+              className="mt-3 rounded-full border border-slate-300 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-white"
+            >
+              {showAll ? "Show top 5" : `View all (${items.length})`}
+            </button>
+          ) : null}
+        </>
       )}
     </DashboardSection>
   );

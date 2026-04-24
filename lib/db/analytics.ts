@@ -1,6 +1,7 @@
 import { getPool } from "@/lib/db/pool";
 
 type CountByDay = { day: string; count: string };
+type DistinctByDay = { day: string; distinct_sessions: string };
 type AvgVitalRow = { metric_name: string; avg_value: string; samples: string };
 type TopPageRow = { path: string; views: string };
 type UptimeRow = {
@@ -101,18 +102,20 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
       unique_visitors_24h: string;
     }>(
       `SELECT
-         (SELECT count(*)::text FROM sessions s WHERE s.website_id = $1 AND s.started_at >= now() - interval '24 hours') AS sessions_24h,
-         (SELECT count(*)::text FROM sessions s WHERE s.website_id = $1 AND s.started_at >= now() - interval '30 days') AS sessions_30d,
+         (SELECT count(DISTINCT p.session_id)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '24 hours') AS sessions_24h,
+         (SELECT count(DISTINCT p.session_id)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '30 days') AS sessions_30d,
          (SELECT count(*)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '24 hours') AS pageviews_24h,
          (SELECT count(*)::text FROM events e WHERE e.website_id = $1 AND e.occurred_at >= now() - interval '24 hours') AS events_24h,
-         (SELECT count(DISTINCT s.visitor_key)::text FROM sessions s WHERE s.website_id = $1 AND s.started_at >= now() - interval '24 hours') AS unique_visitors_24h`,
+         (SELECT count(DISTINCT p.session_id)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '24 hours') AS unique_visitors_24h`,
       [websiteId],
     ),
-    pool.query<CountByDay>(
-      `SELECT to_char((started_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, count(*)::text AS count
-       FROM sessions
+    pool.query<DistinctByDay>(
+      `SELECT
+         to_char((occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+         count(DISTINCT session_id)::text AS distinct_sessions
+       FROM pageviews
        WHERE website_id = $1
-         AND started_at >= now() - interval '30 days'
+         AND occurred_at >= now() - interval '30 days'
        GROUP BY 1
        ORDER BY 1`,
       [websiteId],
@@ -168,7 +171,9 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
 
   const overviewRow = overviewResult.rows[0];
   const dayOrder = dayKeys(30);
-  const sessionsMap = rowsToMap(sessionsDaily.rows);
+  const sessionsMap = new Map(
+    sessionsDaily.rows.map((row) => [row.day, Number(row.distinct_sessions)]),
+  );
   const pageviewsMap = rowsToMap(pageviewsDaily.rows);
   const eventsMap = rowsToMap(eventsDaily.rows);
 

@@ -304,6 +304,29 @@ body {
   }
 }
 
+@keyframes hero-grid-drift {
+  0% {
+    background-position:
+      0 0,
+      0 0;
+  }
+  100% {
+    background-position:
+      26px 26px,
+      26px 26px;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
 /* Light halo on the top row only — heavy blur reads as a “stroke” on HAPPENS. */
 .wave-wordmark-wrap {
   filter: drop-shadow(0 0 18px color-mix(in srgb, var(--wave-purple) 22%, transparent));
@@ -435,4 +458,30 @@ body {
     linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
   background-size: 52px 52px;
   mask-image: radial-gradient(ellipse 85% 70% at 50% 40%, black 20%, transparent 72%);
+  animation: hero-grid-drift 32s linear infinite;
+}
+
+.hero-grid-glow {
+  background:
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--wave-pink) 22%, transparent), transparent 46%),
+    radial-gradient(circle at 82% 76%, color-mix(in srgb, var(--wave-blue) 20%, transparent), transparent 52%);
+  opacity: 0.8;
+}
+
+.hero-live-card {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent),
+    0 24px 60px -46px rgba(0, 0, 0, 0.95),
+    0 0 0 1px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+.animate-float-soft {
+  animation: float-soft 6.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-grid-bg,
+  .animate-float-soft {
+    animation: none;
+  }
 }

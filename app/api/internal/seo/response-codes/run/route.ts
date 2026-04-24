@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { spawn } from "node:child_process";
 import { authOptions } from "@/lib/auth/options";
+import { getBillingAccess } from "@/lib/billing/access";
 
 export const runtime = "nodejs";
 
@@ -80,6 +81,17 @@ export async function POST(request: Request): Promise<Response> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return json({ ok: false, error: "unauthorized" }, 401);
+  }
+  const billing = await getBillingAccess(session.user.id, session.user.email);
+  if (!billing.seoEnabled) {
+    return json(
+      {
+        ok: false,
+        error: "upgrade_required",
+        message: "SEO crawling is available on the Committed plan.",
+      },
+      403,
+    );
   }
 
   let siteIdOverride: string | undefined;

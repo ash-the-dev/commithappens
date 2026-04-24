@@ -13,6 +13,7 @@ CREATE TABLE users (
   email           text NOT NULL,
   password_hash   text, -- nullable if you add OAuth-only accounts later
   display_name    text,
+  plan            text NOT NULL DEFAULT 'free',
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT users_email_nonempty_chk CHECK (email <> '')

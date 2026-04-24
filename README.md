@@ -70,6 +70,38 @@ APIFY_DATASET_ID=...      # manual import mode
 APIFY_ACTOR_RUN_ID=...    # manual import mode
 ```
 
+## Billing (Stripe subscriptions)
+
+The app supports two paid plans with a 7-day free trial:
+
+- `situationship` -> monitoring + analysis, no SEO toolkit
+- `committed` -> SEO + monitoring + analysis, up to 3 sites
+
+Required env vars:
+
+```bash
+STRIPE_SECRET_KEY=sk_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID_SITUATIONSHIP_MONTHLY=price_...
+STRIPE_PRICE_ID_COMMITTED_MONTHLY=price_...
+```
+
+Routes:
+
+- `POST /api/billing/checkout` -> create Stripe Checkout session (`subscription`, 7-day trial)
+- `POST /api/billing/portal` -> Stripe Customer Portal session
+- `POST /api/billing/webhook` -> Stripe event handler for subscription state sync
+
+Webhook events handled:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.paid`
+- `invoice.payment_failed`
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -16,6 +16,8 @@ export type InsertUptimeLogInput = {
   errorMessage: string | null;
 };
 
+const FREE_TIER_MIN_PROBE_GAP_MIN = 15;
+
 export async function getActiveUptimeChecks(): Promise<ActiveUptimeCheck[]> {
   const pool = getPool();
   const result = await pool.query<ActiveUptimeCheck>(
@@ -29,9 +31,21 @@ export async function getActiveUptimeChecks(): Promise<ActiveUptimeCheck[]> {
        ) AS url
      FROM uptime_checks uc
      JOIN websites w ON w.id = uc.website_id
+     LEFT JOIN user_subscriptions s ON s.user_id = w.owner_user_id
+     LEFT JOIN LATERAL (
+       SELECT max(ul.checked_at) AS last_at
+       FROM uptime_logs ul
+       WHERE ul.uptime_check_id = uc.id
+     ) last_log ON true
      WHERE uc.is_enabled = true
        AND w.is_active = true
-       AND w.deleted_at IS NULL`,
+       AND w.deleted_at IS NULL
+       AND (
+         (COALESCE(s.status, '') IN ('trialing', 'active', 'past_due') AND s.plan_key IS NOT NULL)
+         OR last_log.last_at IS NULL
+         OR last_log.last_at < now() - ($1::int * interval '1 minute')
+       )`,
+    [FREE_TIER_MIN_PROBE_GAP_MIN],
   );
 
   return result.rows.filter((row) => {

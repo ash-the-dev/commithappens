@@ -5,6 +5,7 @@ import { CommitHappensMark } from "@/components/brand/CommitHappensMark";
 import { authOptions } from "@/lib/auth/options";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { ThemePicker } from "@/components/theme/ThemePicker";
+import { getBillingAccess } from "@/lib/billing/access";
 
 export default async function DashboardLayout({
   children,
@@ -15,6 +16,15 @@ export default async function DashboardLayout({
   if (!session?.user) {
     redirect("/login");
   }
+  const billing = await getBillingAccess(session.user.id, session.user.email);
+  const planLabel =
+    billing.accountKind === "free"
+      ? "Free plan"
+      : billing.planKey === "committed"
+        ? "Committed"
+        : billing.planKey === "situationship"
+          ? "Situationship"
+          : "Paid plan";
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -36,9 +46,25 @@ export default async function DashboardLayout({
               >
                 Add site
               </Link>
+              <Link className="transition hover:text-brand" href="/billing">
+                Billing
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4 text-sm text-white/70">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/85">
+                {planLabel}
+              </span>
+              {billing.accountKind === "free" && (
+                <Link
+                  href="/pricing"
+                  className="rounded-full border border-brand/40 bg-brand/15 px-2.5 py-0.5 text-[11px] font-semibold text-brand transition hover:border-brand/60"
+                >
+                  Unlock full intelligence
+                </Link>
+              )}
+            </div>
             <div className="hidden md:block">
               <ThemePicker />
             </div>

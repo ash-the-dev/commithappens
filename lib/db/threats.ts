@@ -501,4 +501,26 @@ export async function getWebsiteThreatLeaderboard(
   };
 }
 
+export function emptyWebsiteThreatOverview(): WebsiteThreatOverview {
+  return {
+    total_flagged_sessions: 0,
+    high_risk_sessions: 0,
+    medium_risk_sessions: 0,
+    low_risk_sessions: 0,
+    flagged_activity_count: 0,
+    recent_flags: [],
+    top_risk_reasons: [],
+    generated_at: new Date().toISOString(),
+  };
+}
+
+export function emptyWebsiteThreatLeaderboard(): WebsiteThreatLeaderboard {
+  return {
+    risky_sessions: [],
+    risky_paths: [],
+    risky_events: [],
+    repeated_patterns: [],
+  };
+}
+
 export { THREAT_RULES };

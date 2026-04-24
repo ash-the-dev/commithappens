@@ -554,3 +554,18 @@ export async function getWebsiteInsights(
     latest_spike_explanation: latestSpikeExplanation,
   };
 }
+
+/** When `accountKind === "free"`, full insight pipelines are skipped; cards still render. */
+export function emptyWebsiteInsightsForFreePlan(): WebsiteInsights {
+  return {
+    summary_text:
+      "Intelligence and anomaly insights are on paid plans. Upgrade to unlock the full story.",
+    key_points: [],
+    detected_flags: [],
+    generated_at: new Date().toISOString(),
+    supporting_metrics: {},
+    anomalies: [],
+    latest_anomaly: null,
+    latest_spike_explanation: null,
+  };
+}

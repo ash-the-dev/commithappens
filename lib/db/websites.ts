@@ -21,6 +21,18 @@ export async function listWebsitesForUser(userId: string): Promise<DbWebsite[]> 
   return result.rows;
 }
 
+export async function countWebsitesForUser(userId: string): Promise<number> {
+  const pool = getPool();
+  const result = await pool.query<{ count: string }>(
+    `SELECT count(*)::text AS count
+     FROM websites
+     WHERE owner_user_id = $1::uuid
+       AND deleted_at IS NULL`,
+    [userId],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
 export async function createWebsite(
   userId: string,
   name: string,

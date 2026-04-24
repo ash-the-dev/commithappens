@@ -1,3 +1,7 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/options";
+import { getBillingAccess } from "@/lib/billing/access";
+import { getWebsiteForUser } from "@/lib/db/websites";
 import { buildResponseCodeReportFromParseResult } from "@/lib/seo-reporting";
 import { buildResponseCodeComparison } from "@/lib/seo/report";
 
@@ -14,9 +18,26 @@ function resolveSiteId(request: Request): string {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) {
+    return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  const billing = await getBillingAccess(userId, session.user.email);
+  if (!billing.seoEnabled) {
+    return Response.json(
+      { ok: false, error: "upgrade_required", message: "SEO report access is on the Committed plan." },
+      { status: 403 },
+    );
+  }
+
   const SUPABASE_URL = process.env.SUPABASE_URL?.trim();
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY?.trim();
   const siteId = resolveSiteId(request);
+  const site = await getWebsiteForUser(siteId, userId);
+  if (!site) {
+    return Response.json({ ok: false, error: "website_not_found" }, { status: 404 });
+  }
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.warn("[seo][response-codes] Missing Supabase env vars");
     return Response.json(buildResponseCodeReportFromParseResult(null));

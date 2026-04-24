@@ -341,6 +341,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchReport().finally(() => {
       if (!cancelled) setIsLoading(false);
     });
@@ -425,7 +426,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
   const fakeProgress = Math.min(92, 14 + crawlElapsedSec * 1.25);
 
   return (
-    <section className="ui-dash-shell p-5 sm:p-7">
+    <section id="seo-console" className="ui-dash-shell p-5 sm:p-7">
       {isRunningCrawl ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-cyan-200/30 bg-linear-to-br from-slate-900/95 via-slate-900/92 to-indigo-950/90 p-5 shadow-2xl">
