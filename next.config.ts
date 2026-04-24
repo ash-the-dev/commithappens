@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         has: [{ type: "host", value: "commithappens.com" }],
         destination: "https://www.commithappens.com/:path*",
-        permanent: false,
+        permanent: true,
       },
     ];
   },
