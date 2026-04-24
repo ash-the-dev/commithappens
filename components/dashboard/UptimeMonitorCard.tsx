@@ -1,4 +1,6 @@
 import type { WebsiteUptimeHistoryItem, WebsiteUptimeSnapshot } from "@/lib/db/uptime";
+import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
+import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
 
 type Props = {
   snapshot: WebsiteUptimeSnapshot | null;
@@ -31,11 +33,12 @@ function formatRelative(iso: string | null): string {
 export function UptimeMonitorCard({ snapshot, history, isFreeTier }: Props) {
   const currentStatus = snapshot?.status ?? "unknown";
   const cadence = snapshot?.frequencyMinutes ?? 30;
+  const tbtn = "h-4 w-4 min-h-4 min-w-4 text-[8px] border-white/25 bg-white/5 text-white/90";
   return (
     <section className="ui-surface p-1 sm:p-1.5">
       <div className="relative overflow-hidden rounded-[calc(1rem-3px)] border border-white/[0.08] bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_20px_50px_-44px_rgba(0,0,0,0.85)] sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 pr-1">
           <p className="ui-section-title text-white/55">Uptime monitor</p>
           <h3 className="mt-2 text-xl font-semibold tracking-tight text-white">Current status: {currentStatus}</h3>
           <p className="mt-1 text-xs text-white/65">
@@ -43,12 +46,23 @@ export function UptimeMonitorCard({ snapshot, history, isFreeTier }: Props) {
             {cadence === 1 ? "" : "s"}
           </p>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusTone(currentStatus)}`}>
-          {currentStatus}
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("uptime")} />
+          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusTone(currentStatus)}`}>
+            {currentStatus}
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 space-y-2">
+        {history.length > 0 ? (
+          <div className="mb-0.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-white/10 pb-1 text-[9px] font-semibold uppercase tracking-wide text-white/45 sm:text-[10px]">
+            <span>Check</span>
+            <span>When</span>
+            <span>HTTP</span>
+            <span>Time (ms)</span>
+          </div>
+        ) : null}
         {(history.length === 0 ? [null] : history).map((row, idx) =>
           row ? (
             <div

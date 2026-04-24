@@ -1,5 +1,33 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Script from "next/script";
+import { DEFAULT_DESCRIPTION, PRICING_TITLE, SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
+
+const pricingDescription =
+  "Start a 7-day free trial. See what changed, what broke, and what actually matters. Cancel before renewal anytime.";
+
+export const metadata: Metadata = {
+  title: PRICING_TITLE,
+  description: pricingDescription,
+  alternates: { canonical: "/pricing" },
+  openGraph: {
+    type: "website",
+    url: "/pricing",
+    title: `Pricing & free trial · ${SITE_NAME_DISPLAY}`,
+    description: pricingDescription,
+  },
+  twitter: {
+    title: `Pricing & free trial · ${SITE_NAME_DISPLAY}`,
+    description: pricingDescription,
+  },
+  keywords: [
+    "pricing",
+    "free trial",
+    "Commit Happens",
+    "website monitoring plans",
+    "seo monitoring",
+  ],
+};
 
 export default function PricingPage() {
   return (

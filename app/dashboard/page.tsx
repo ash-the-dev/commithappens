@@ -24,11 +24,21 @@ export default async function DashboardPage() {
   const atSiteLimit = siteCount >= billing.maxSites;
 
   return (
-    <main className="mx-auto max-w-6xl space-y-10 px-6 py-12">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <main className="relative isolate mx-auto max-w-6xl space-y-10 overflow-hidden rounded-b-[1.5rem] px-6 py-12 sm:px-7">
+      <div className="ui-dashboard-ambient" aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-[min(100vh,28rem)] bg-[radial-gradient(circle_at_50%_-10%,color-mix(in_srgb,var(--brand)_20%,transparent),transparent_58%)]"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -right-20 top-20 z-[1] h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--wave-purple)_14%,transparent),transparent_68%)] blur-2xl"
+        aria-hidden
+      />
+      <div className="relative z-10 flex flex-wrap items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-semibold text-white">Your sites</h1>
-          <p className="mt-2 max-w-xl text-sm text-white/60">
+          <p className="ui-section-title text-brand/85">Dashboard</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Your sites</h1>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/65">
             Real metrics only. We surface what changed, what regressed, and what needs
             cleanup next.
           </p>
@@ -61,6 +71,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      <div className="relative z-10 space-y-10">
       <DashboardSummary summary={summary} />
 
       {billing.accountKind === "free" && (
@@ -86,6 +97,7 @@ export default async function DashboardPage() {
           ))}
         </ul>
       )}
+      </div>
     </main>
   );
 }

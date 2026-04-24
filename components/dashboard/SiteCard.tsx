@@ -69,45 +69,51 @@ export function SiteCard({ site }: Props) {
   const tone = stateTone(site);
 
   return (
-    <li className={`rounded-3xl border bg-white/10 p-5 backdrop-blur-xl transition ${tone.border}`}>
-      <div className="flex items-start justify-between gap-3">
+    <li
+      className={`u-hover-site-card group relative overflow-hidden rounded-3xl border bg-gradient-to-b from-white/[0.12] to-white/[0.04] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_40px_-28px_rgba(0,0,0,0.9)] backdrop-blur-xl transition duration-200 sm:p-6 ${tone.border}`}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,transparent_40%,color-mix(in_srgb,var(--brand)_8%,transparent)_50%,transparent_60%)] opacity-0 transition duration-500 group-hover:opacity-100"
+        aria-hidden
+      />
+      <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-xl font-semibold text-white">{site.name}</p>
+          <p className="truncate text-xl font-semibold tracking-tight text-white">{site.name}</p>
           <p className="mt-1 truncate text-sm text-brand-muted">{site.domain}</p>
         </div>
-        <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone.badge}`}>{tone.label}</span>
+        <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone.badge}`}>{tone.label}</span>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-white/30 bg-white/90 p-3">
-          <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Health score</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">
+      <div className="relative mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/35 bg-gradient-to-b from-white/95 to-white/88 p-3 shadow-sm ring-1 ring-white/20">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Health score</p>
+          <p className="ui-kpi-value mt-1 text-slate-900">
             {site.healthScore !== null ? `${site.healthScore}%` : "No data available yet"}
           </p>
           <p className="mt-1 text-xs text-slate-600">{healthDelta(site.healthDelta)}</p>
         </div>
-        <div className="rounded-2xl border border-white/30 bg-white/90 p-3">
-          <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Issues</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">
+        <div className="rounded-2xl border border-white/35 bg-gradient-to-b from-white/95 to-white/88 p-3 shadow-sm ring-1 ring-white/20">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Issues</p>
+          <p className="ui-kpi-value mt-1 text-slate-900">
             {site.issuesCurrent !== null ? site.issuesCurrent : "No data available yet"}
           </p>
           <p className="mt-1 text-xs text-slate-600">{metricDelta(site.issuesDelta)}</p>
         </div>
-        <div className="rounded-2xl border border-white/30 bg-white/90 p-3">
-          <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Healthy pages</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">
+        <div className="rounded-2xl border border-white/35 bg-gradient-to-b from-white/95 to-white/88 p-3 shadow-sm ring-1 ring-white/20">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Healthy pages</p>
+          <p className="ui-kpi-value mt-1 text-slate-900">
             {site.healthyPages !== null ? site.healthyPages : "No data available yet"}
           </p>
           <p className="mt-1 text-xs text-slate-600">From latest crawl report</p>
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-white/25 bg-white/10 p-3">
-        <p className="text-xs uppercase tracking-[0.12em] text-white/60">Top issue</p>
-        <p className="mt-1 text-sm text-white">{site.topIssue ?? "No data available yet"}</p>
+      <div className="relative mt-4 rounded-2xl border border-white/22 bg-gradient-to-b from-white/[0.10] to-white/[0.04] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/60">Top issue</p>
+        <p className="mt-1 text-sm leading-relaxed text-white/95">{site.topIssue ?? "No data available yet"}</p>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-white/70">
+      <div className="relative mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-white/70">
         <p>Last checked: {formatRelative(site.lastCheckedAt)}</p>
         <p>Last activity: {formatRelative(site.lastSeenAt)}</p>
         <p>
@@ -124,16 +130,16 @@ export function SiteCard({ site }: Props) {
         </p>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-2">
+      <div className="relative mt-5 flex flex-wrap items-center gap-2">
         <Link
           href={`/dashboard/sites/${site.id}`}
-          className="rounded-full bg-brand px-4 py-2 text-xs font-semibold text-black transition hover:bg-brand-muted"
+          className="rounded-full bg-brand px-4 py-2 text-xs font-semibold text-black shadow-sm transition hover:bg-brand-muted"
         >
           View report
         </Link>
         <Link
           href={`/dashboard/sites/${site.id}#seo-console`}
-          className="rounded-full border border-white/35 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+          className="rounded-full border border-white/35 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:border-brand/35 hover:bg-white/18"
         >
           Run scan
         </Link>

@@ -1,6 +1,15 @@
-﻿import Link from "next/link";
+﻿import type { Metadata } from "next";
+import Link from "next/link";
 import { CommitHappensMark } from "@/components/brand/CommitHappensMark";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
+import { SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
+
+export const metadata: Metadata = {
+  title: "Forgot password",
+  description: `Reset your ${SITE_NAME_DISPLAY} account password.`,
+  robots: { index: false, follow: true },
+  alternates: { canonical: "/forgot-password" },
+};
 
 export default function ForgotPasswordPage() {
   return (

@@ -159,6 +159,7 @@ export default async function SiteDetailPage({ params }: Props) {
     {
       id: "traffic",
       title: "Traffic",
+      helpMetricId: "traffic_overview",
       metricPrimary: `${analytics.overview.sessions24h.toLocaleString("en-US")} visits (24h)`,
       metricSecondary: `${analytics.overview.pageviews24h.toLocaleString("en-US")} pageviews (24h)`,
       status:
@@ -170,6 +171,7 @@ export default async function SiteDetailPage({ params }: Props) {
     {
       id: "performance",
       title: "Performance",
+      helpMetricId: "performance_overview",
       metricPrimary: analytics.uptime.hasChecks24h
         ? `${analytics.uptime.uptimePct24h.toFixed(2)}% uptime`
         : "No uptime checks",
@@ -184,6 +186,7 @@ export default async function SiteDetailPage({ params }: Props) {
     {
       id: "issues",
       title: "Issues",
+      helpMetricId: "issues_overview",
       metricPrimary: `${insights.detected_flags.length} active flags`,
       metricSecondary: insights.summary_text,
       status:
@@ -193,6 +196,7 @@ export default async function SiteDetailPage({ params }: Props) {
     {
       id: "health",
       title: "Health",
+      helpMetricId: "health_overview",
       metricPrimary: `${analytics.vitalAverages.length} CWV metrics`,
       metricSecondary: analytics.vitalAverages.length > 0 ? "Performance samples available" : "No vitals yet",
       status: analytics.vitalAverages.length > 0 ? "Quality telemetry active." : "Waiting on browser telemetry.",
@@ -201,6 +205,7 @@ export default async function SiteDetailPage({ params }: Props) {
     {
       id: "changes",
       title: "Changes",
+      helpMetricId: "changes_overview",
       metricPrimary: `${changeImpacts.length} impact records`,
       metricSecondary: topChange?.change_type ?? "No recent changes detected",
       status: topChange ? "Latest deployment impact available." : "No new change impacts yet.",
@@ -209,6 +214,7 @@ export default async function SiteDetailPage({ params }: Props) {
     {
       id: "anomalies",
       title: "Anomalies",
+      helpMetricId: "anomalies_overview",
       metricPrimary: `${insights.anomalies.length} anomaly signal(s)`,
       metricSecondary: latestAnomaly
         ? `${latestAnomaly.metric_type} ${latestAnomaly.percent_change > 0 ? "+" : ""}${latestAnomaly.percent_change.toFixed(1)}%`
@@ -335,6 +341,8 @@ export default async function SiteDetailPage({ params }: Props) {
         </summary>
         <div className="px-2 pb-2">
           <SeoCrawlIntelligenceSection
+            siteId={site.id}
+            seoEnabled={seoEnabled}
             latestRun={crawlSnapshot}
             topIssues={topCrawlIssues}
             isFree={billing.accountKind === "free"}

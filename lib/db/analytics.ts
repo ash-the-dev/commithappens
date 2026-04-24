@@ -1,4 +1,5 @@
 import { getPool } from "@/lib/db/pool";
+import { CRAWLER_USER_AGENT_POSTGRES_REGEX } from "@/lib/ingestion/crawler-user-agent";
 
 type CountByDay = { day: string; count: string };
 type DistinctByDay = { day: string; distinct_sessions: string };
@@ -102,71 +103,123 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
       unique_visitors_24h: string;
     }>(
       `SELECT
-         (SELECT count(DISTINCT p.session_id)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '24 hours') AS sessions_24h,
-         (SELECT count(DISTINCT p.session_id)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '30 days') AS sessions_30d,
-         (SELECT count(*)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '24 hours') AS pageviews_24h,
-         (SELECT count(*)::text FROM events e WHERE e.website_id = $1 AND e.occurred_at >= now() - interval '24 hours') AS events_24h,
-         (SELECT count(DISTINCT p.session_id)::text FROM pageviews p WHERE p.website_id = $1 AND p.occurred_at >= now() - interval '24 hours') AS unique_visitors_24h`,
-      [websiteId],
+         (SELECT count(DISTINCT p.session_id)::text
+            FROM pageviews p
+            INNER JOIN sessions s ON s.id = p.session_id
+            WHERE p.website_id = $1
+              AND p.occurred_at >= now() - interval '24 hours'
+              AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)) AS sessions_24h,
+         (SELECT count(DISTINCT p.session_id)::text
+            FROM pageviews p
+            INNER JOIN sessions s ON s.id = p.session_id
+            WHERE p.website_id = $1
+              AND p.occurred_at >= now() - interval '30 days'
+              AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)) AS sessions_30d,
+         (SELECT count(*)::text
+            FROM pageviews p
+            INNER JOIN sessions s ON s.id = p.session_id
+            WHERE p.website_id = $1
+              AND p.occurred_at >= now() - interval '24 hours'
+              AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)) AS pageviews_24h,
+         (SELECT count(*)::text
+            FROM events e
+            INNER JOIN sessions s ON s.id = e.session_id
+            WHERE e.website_id = $1
+              AND e.occurred_at >= now() - interval '24 hours'
+              AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)) AS events_24h,
+         (SELECT count(DISTINCT s.visitor_key)::text
+            FROM pageviews p
+            INNER JOIN sessions s ON s.id = p.session_id
+            WHERE p.website_id = $1
+              AND p.occurred_at >= now() - interval '24 hours'
+              AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)) AS unique_visitors_24h`,
+      [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX],
     ),
     pool.query<DistinctByDay>(
       `SELECT
-         to_char((occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
-         count(DISTINCT session_id)::text AS distinct_sessions
-       FROM pageviews
-       WHERE website_id = $1
-         AND occurred_at >= now() - interval '30 days'
+         to_char((p.occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+         count(DISTINCT p.session_id)::text AS distinct_sessions
+       FROM pageviews p
+       INNER JOIN sessions s ON s.id = p.session_id
+       WHERE p.website_id = $1
+         AND p.occurred_at >= now() - interval '30 days'
+         AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
        GROUP BY 1
        ORDER BY 1`,
-      [websiteId],
+      [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX],
     ),
     pool.query<CountByDay>(
-      `SELECT to_char((occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, count(*)::text AS count
-       FROM pageviews
-       WHERE website_id = $1
-         AND occurred_at >= now() - interval '30 days'
+      `SELECT to_char((p.occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, count(*)::text AS count
+       FROM pageviews p
+       INNER JOIN sessions s ON s.id = p.session_id
+       WHERE p.website_id = $1
+         AND p.occurred_at >= now() - interval '30 days'
+         AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
        GROUP BY 1
        ORDER BY 1`,
-      [websiteId],
+      [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX],
     ),
     pool.query<CountByDay>(
-      `SELECT to_char((occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, count(*)::text AS count
-       FROM events
-       WHERE website_id = $1
-         AND occurred_at >= now() - interval '30 days'
+      `SELECT to_char((e.occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day, count(*)::text AS count
+       FROM events e
+       INNER JOIN sessions s ON s.id = e.session_id
+       WHERE e.website_id = $1
+         AND e.occurred_at >= now() - interval '30 days'
+         AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
        GROUP BY 1
        ORDER BY 1`,
-      [websiteId],
+      [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX],
     ),
     pool.query<AvgVitalRow>(
-      `SELECT metric_name, avg(value)::text AS avg_value, count(*)::text AS samples
-       FROM web_vitals
-       WHERE website_id = $1
-         AND occurred_at >= now() - interval '7 days'
-       GROUP BY metric_name
-       ORDER BY metric_name`,
-      [websiteId],
+      `SELECT w.metric_name, avg(w.value)::text AS avg_value, count(*)::text AS samples
+       FROM web_vitals w
+       LEFT JOIN sessions s ON s.id = w.session_id
+       WHERE w.website_id = $1
+         AND w.occurred_at >= now() - interval '7 days'
+         AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
+       GROUP BY w.metric_name
+       ORDER BY w.metric_name`,
+      [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX],
     ),
     pool.query<TopPageRow>(
-      `SELECT path, count(*)::text AS views
-       FROM pageviews
-       WHERE website_id = $1
-         AND occurred_at >= now() - interval '14 days'
-       GROUP BY path
+      `SELECT p.path, count(*)::text AS views
+       FROM pageviews p
+       INNER JOIN sessions s ON s.id = p.session_id
+       WHERE p.website_id = $1
+         AND p.occurred_at >= now() - interval '14 days'
+         AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
+       GROUP BY p.path
        ORDER BY views DESC
        LIMIT 6`,
-      [websiteId],
+      [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX],
     ),
-    pool.query<UptimeRow>(
-      `SELECT
-         count(*)::text AS checks_24h,
-         count(*) FILTER (WHERE is_up)::text AS checks_up_24h,
-         avg(response_time_ms)::text AS avg_response_24h
-       FROM uptime_logs
-       WHERE website_id = $1
-         AND checked_at >= now() - interval '24 hours'`,
-      [websiteId],
-    ),
+    (async () => {
+      try {
+        return await pool.query<UptimeRow>(
+          `SELECT
+             count(*)::text AS checks_24h,
+             count(*) FILTER (
+               WHERE coalesce(status, CASE WHEN is_up THEN 'up' ELSE 'down' END) = 'up'
+             )::text AS checks_up_24h,
+             avg(response_time_ms)::text AS avg_response_24h
+           FROM uptime_logs
+           WHERE website_id = $1
+             AND checked_at >= now() - interval '24 hours'`,
+          [websiteId],
+        );
+      } catch {
+        return pool.query<UptimeRow>(
+          `SELECT
+             count(*)::text AS checks_24h,
+             count(*) FILTER (WHERE is_up)::text AS checks_up_24h,
+             avg(response_time_ms)::text AS avg_response_24h
+           FROM uptime_logs
+           WHERE website_id = $1
+             AND checked_at >= now() - interval '24 hours'`,
+          [websiteId],
+        );
+      }
+    })(),
   ]);
 
   const overviewRow = overviewResult.rows[0];
@@ -241,12 +294,14 @@ export async function getSiteLiveActivity(
       occurred_at: Date;
       session_id: string;
     }>(
-      `SELECT id, path, title, occurred_at, session_id
-       FROM pageviews
-       WHERE website_id = $1
-       ORDER BY occurred_at DESC
-       LIMIT $2`,
-      [websiteId, safeLimit],
+      `SELECT p.id, p.path, p.title, p.occurred_at, p.session_id
+       FROM pageviews p
+       INNER JOIN sessions s ON s.id = p.session_id
+       WHERE p.website_id = $1
+         AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
+       ORDER BY p.occurred_at DESC
+       LIMIT $3`,
+      [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX, safeLimit],
     ),
     (async () => {
       try {
@@ -257,12 +312,14 @@ export async function getSiteLiveActivity(
           occurred_at: Date;
           session_id: string;
         }>(
-          `SELECT id, name, path, occurred_at, session_id
-           FROM events
-           WHERE website_id = $1
-           ORDER BY occurred_at DESC
-           LIMIT $2`,
-          [websiteId, safeLimit],
+          `SELECT e.id, e.name, e.path, e.occurred_at, e.session_id
+           FROM events e
+           INNER JOIN sessions s ON s.id = e.session_id
+           WHERE e.website_id = $1
+             AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
+           ORDER BY e.occurred_at DESC
+           LIMIT $3`,
+          [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX, safeLimit],
         );
       } catch {
         return pool.query<{
@@ -271,12 +328,14 @@ export async function getSiteLiveActivity(
           occurred_at: Date;
           session_id: string;
         }>(
-          `SELECT id, name, occurred_at, session_id
-           FROM events
-           WHERE website_id = $1
-           ORDER BY occurred_at DESC
-           LIMIT $2`,
-          [websiteId, safeLimit],
+          `SELECT e.id, e.name, e.occurred_at, e.session_id
+           FROM events e
+           INNER JOIN sessions s ON s.id = e.session_id
+           WHERE e.website_id = $1
+             AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
+           ORDER BY e.occurred_at DESC
+           LIMIT $3`,
+          [websiteId, CRAWLER_USER_AGENT_POSTGRES_REGEX, safeLimit],
         );
       }
     })(),

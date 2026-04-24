@@ -3,6 +3,7 @@ import {
   classifyTrafficChannel,
   fingerprintFields,
 } from "@/lib/ingestion/attribution";
+import { isKnownSearchOrMonitoringCrawlerUserAgent } from "@/lib/ingestion/crawler-user-agent";
 import type {
   CustomIngestEvent,
   IngestEvent,
@@ -377,6 +378,11 @@ export async function persistIngestBatch(
         : null;
     const deviceType = normalizeDeviceType(payload.context?.deviceType);
 
+    if (isKnownSearchOrMonitoringCrawlerUserAgent(userAgent)) {
+      await client.query("ROLLBACK");
+      return { ok: true };
+    }
+
     let sessionId: string | null = null;
     let sessionReady = false;
     let attempts = 0;
@@ -465,8 +471,12 @@ export async function persistIngestBatch(
       return { ok: false, status: 409, error: "session_race" };
     }
 
-    for (const ev of sorted) {
-      const at = parseOccurredAt(ev.occurredAt);
+    // Use server time for occurred_at so rolling 24h/30d window queries match reality (client clocks are often wrong).
+    const receivedAtMs = Date.now();
+
+    for (let i = 0; i < sorted.length; i += 1) {
+      const ev = sorted[i]!;
+      const at = new Date(receivedAtMs + i);
 
       if (ev.type === "pageview") {
         const columns = [

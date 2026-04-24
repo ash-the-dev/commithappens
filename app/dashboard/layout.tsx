@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -6,6 +7,10 @@ import { authOptions } from "@/lib/auth/options";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { ThemePicker } from "@/components/theme/ThemePicker";
 import { getBillingAccess } from "@/lib/billing/access";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+};
 
 export default async function DashboardLayout({
   children,
@@ -28,7 +33,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border bg-black/40 px-6 py-5 backdrop-blur md:py-6">
+      <header className="border-b border-border/80 bg-linear-to-b from-black/55 to-black/35 px-6 py-5 shadow-[0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-xl md:py-6">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 md:gap-6">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-5 md:gap-8 lg:gap-10">
             <CommitHappensMark
@@ -36,17 +41,23 @@ export default async function DashboardLayout({
               variant="dashboard"
               scale="dashboardXL"
             />
-            <nav className="flex gap-4 text-sm text-white/70">
-              <Link className="transition hover:text-brand" href="/dashboard">
+            <nav className="flex items-center gap-1 text-sm text-white/72">
+              <Link
+                className="rounded-lg px-2.5 py-1.5 transition hover:bg-white/6 hover:text-brand"
+                href="/dashboard"
+              >
                 Sites
               </Link>
               <Link
-                className="transition hover:text-brand"
+                className="rounded-lg px-2.5 py-1.5 transition hover:bg-white/6 hover:text-brand"
                 href="/dashboard/sites/new"
               >
                 Add site
               </Link>
-              <Link className="transition hover:text-brand" href="/billing">
+              <Link
+                className="rounded-lg px-2.5 py-1.5 transition hover:bg-white/6 hover:text-brand"
+                href="/billing"
+              >
                 Billing
               </Link>
             </nav>

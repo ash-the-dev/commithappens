@@ -1,6 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CommitHappensMark } from "@/components/brand/CommitHappensMark";
 import { RegisterForm } from "@/components/auth/RegisterForm";
+import { SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
+
+export const metadata: Metadata = {
+  title: "Create account",
+  description: `Create a ${SITE_NAME_DISPLAY} account. 7 days free, cancel before renewal anytime.`,
+  robots: { index: false, follow: true },
+  alternates: { canonical: "/register" },
+};
 
 export default function RegisterPage() {
   return (

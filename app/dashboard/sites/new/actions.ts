@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth/options";
 import { getBillingAccess } from "@/lib/billing/access";
 import { normalizePrimaryDomain } from "@/lib/domain";
 import { countWebsitesForUser, createWebsite } from "@/lib/db/websites";
+import { ensureUptimeCheckForWebsite } from "@/lib/db/uptime";
+import { getPlanMonitoringFrequency } from "@/lib/billing/plan-monitoring";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
@@ -46,6 +48,11 @@ export async function createWebsiteAction(
       };
     }
     site = await createWebsite(session.user.id, name, primaryDomain);
+    await ensureUptimeCheckForWebsite({
+      websiteId: site.id,
+      userId: session.user.id,
+      frequencyMinutes: getPlanMonitoringFrequency(billing.accountKind),
+    });
   } catch (err) {
     console.error("[createWebsiteAction]", err);
     const message = err instanceof Error ? err.message : "";

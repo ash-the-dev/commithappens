@@ -1,6 +1,15 @@
-﻿import Link from "next/link";
+﻿import type { Metadata } from "next";
+import Link from "next/link";
 import { CommitHappensMark } from "@/components/brand/CommitHappensMark";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
+import { SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
+
+export const metadata: Metadata = {
+  title: "Reset password",
+  description: `Set a new ${SITE_NAME_DISPLAY} password with your secure link.`,
+  robots: { index: false, follow: true },
+  alternates: { canonical: "/reset-password" },
+};
 
 type Props = {
   searchParams?: Promise<{ token?: string }>;

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/app/providers";
+import { SiteJsonLd } from "@/components/seo/SiteJsonLd";
+import { getSitemapBaseUrl } from "@/lib/app-url";
+import { DEFAULT_DESCRIPTION, SITE_NAME_DISPLAY, defaultKeywords } from "@/lib/seo/site-metadata";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,35 +17,56 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-/** Canonical origin for metadata / OG URLs: env first, then Vercel, then local. */
 function metadataBaseUrl(): URL {
-  const explicit = process.env.NEXTAUTH_URL?.trim();
-  if (explicit) {
-    return new URL(explicit.endsWith("/") ? explicit.slice(0, -1) : explicit);
-  }
-  const vercel = process.env.VERCEL_URL?.trim();
-  if (vercel) {
-    const host = vercel.replace(/^https?:\/\//, "").replace(/\/$/, "");
-    return new URL(`https://${host}`);
-  }
-  return new URL("http://localhost:3000");
+  return new URL(getSitemapBaseUrl());
 }
+
+const googleVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 
 export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
   title: {
-    default: "CommitHappens.com",
-    template: "%s · commithappens.com",
+    default: `${SITE_NAME_DISPLAY} — website & deploy health`,
+    template: `%s · ${SITE_NAME_DISPLAY}`,
   },
-  description:
-    "You shipped code. We tell you what happened after, in plain English.",
+  description: DEFAULT_DESCRIPTION,
+  keywords: defaultKeywords,
+  applicationName: SITE_NAME_DISPLAY,
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   openGraph: {
-    siteName: "commithappens.com",
+    siteName: SITE_NAME_DISPLAY,
     type: "website",
+    locale: "en_US",
+    title: `${SITE_NAME_DISPLAY} — website & deploy health`,
+    description: DEFAULT_DESCRIPTION,
+    images: [
+      {
+        url: "/brand/commit-happens.png",
+        width: 1200,
+        height: 630,
+        alt: "Commit Happens",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
+    title: `${SITE_NAME_DISPLAY} — website & deploy health`,
+    description: DEFAULT_DESCRIPTION,
+    images: ["/brand/commit-happens.png"],
   },
+  ...(googleVerification
+    ? { verification: { google: googleVerification } }
+    : {}),
 };
 
 export default function RootLayout({
@@ -56,6 +80,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <SiteJsonLd />
         <Providers>{children}</Providers>
         <Analytics />
       </body>

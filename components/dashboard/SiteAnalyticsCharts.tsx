@@ -15,6 +15,8 @@ import {
   YAxis,
 } from "recharts";
 import type { SiteAnalytics, SiteAnalyticsPoint, SiteVitalAverage } from "@/lib/db/analytics";
+import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
+import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
 
 function num(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
@@ -278,6 +280,9 @@ function uptimePill(a: SiteAnalytics): { className: string; label: string } {
   return { className: pillClass("bad"), label: "Down-ish" };
 }
 
+const kpiInfoBtn =
+  "border-slate-400/50 bg-slate-200/80 text-slate-700 hover:border-slate-500/50 hover:bg-slate-200/95 focus-visible:outline-cyan-700/30";
+
 function KpiCard(props: {
   emphasis?: "none" | "pink" | "green" | "red";
   eyebrow: string;
@@ -288,6 +293,7 @@ function KpiCard(props: {
   next: string;
   footnote?: string;
   right?: ReactNode;
+  infoMetricKey?: string;
 }) {
   const card =
     props.emphasis === "pink"
@@ -301,12 +307,17 @@ function KpiCard(props: {
   return (
     <div className={card}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 pr-1">
           <p className="ui-dash-kicker">{props.eyebrow}</p>
           <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-600">{props.title}</p>
           <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">{props.value}</p>
         </div>
-        {props.right ? <div className="shrink-0">{props.right}</div> : null}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {props.infoMetricKey ? (
+            <InfoTooltip buttonClassName={kpiInfoBtn} {...getMetricExplanation(props.infoMetricKey)} />
+          ) : null}
+          {props.right ? <div>{props.right}</div> : null}
+        </div>
       </div>
 
       <p className="mt-3 text-sm text-slate-800">
@@ -356,8 +367,14 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
 
   return (
     <div className="space-y-5">
+      <p className="text-xs text-slate-600">
+        Traffic excludes known search and SEO crawlers (by user agent). Real browsers and visitors without a
+        user-agent string are still counted.
+      </p>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
+          infoMetricKey="sessions"
           eyebrow="Last 24 hours"
           title="Sessions"
           value={num(analytics.overview.sessions24h)}
@@ -372,6 +389,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
         />
 
         <KpiCard
+          infoMetricKey="pageviews"
           eyebrow="Last 24 hours"
           title="Pageviews"
           value={num(analytics.overview.pageviews24h)}
@@ -386,6 +404,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
         />
 
         <KpiCard
+          infoMetricKey="events"
           eyebrow="Last 24 hours"
           title="Events"
           value={num(analytics.overview.events24h)}
@@ -400,6 +419,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
         />
 
         <KpiCard
+          infoMetricKey="uptime"
           emphasis={analytics.uptime.hasChecks24h ? undefined : "red"}
           eyebrow="Last 24 hours"
           title="Uptime (HTTP checks)"
@@ -699,9 +719,12 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
           </div>
         </div>
 
-        <div className="ui-dash-card p-5 sm:p-6">
+        <div className="ui-dash-card relative p-5 sm:p-6">
+          <div className="absolute right-3 top-3 z-10 sm:right-5 sm:top-4">
+            <InfoTooltip buttonClassName={kpiInfoBtn} {...getMetricExplanation("web_vitals")} />
+          </div>
           <p className="ui-dash-kicker">Real-user speed</p>
-          <h3 className="ui-dash-title">Core Web Vitals (last 7 days)</h3>
+          <h3 className="ui-dash-title pr-7 sm:pr-8">Core Web Vitals (last 7 days)</h3>
           <p className="ui-dash-subtitle">
             Google-y performance signals, translated into human: “fast, stable, clickable — or not.”
           </p>
@@ -773,7 +796,10 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
             </div>
           )}
 
-          <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+          <div className="relative mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4 pr-10">
+            <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
+              <InfoTooltip buttonClassName={kpiInfoBtn} {...getMetricExplanation("response_time")} />
+            </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
               Server responsiveness (uptime probe)
             </p>

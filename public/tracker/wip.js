@@ -115,8 +115,8 @@
     var url = origin + "/api/v1/ingest";
     if (navigator.sendBeacon) {
       var blob = new Blob([payload], { type: "application/json" });
-      navigator.sendBeacon(url, blob);
-      return;
+      var queued = navigator.sendBeacon(url, blob);
+      if (queued) return;
     }
     fetch(url, {
       method: "POST",
@@ -269,7 +269,17 @@
     }
   }
 
+  var lastPageviewKey = null;
+  var lastPageviewAt = 0;
+  /** Debounce same URL: frameworks often call history.replaceState on first paint, which would double-count. */
   function pageview() {
+    var key = (location.pathname || "/") + "\0" + (location.search || "");
+    var now = Date.now();
+    if (key === lastPageviewKey && now - lastPageviewAt < 500) {
+      return;
+    }
+    lastPageviewKey = key;
+    lastPageviewAt = now;
     send([
       {
         type: "pageview",

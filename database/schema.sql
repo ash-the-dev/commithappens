@@ -181,31 +181,48 @@ CREATE INDEX web_vitals_website_metric_time_idx ON web_vitals (website_id, metri
 -- Uptime monitoring
 -- ---------------------------------------------------------------------------
 CREATE TABLE uptime_checks (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  website_id      uuid NOT NULL REFERENCES websites (id) ON DELETE CASCADE,
-  url             text NOT NULL,
-  interval_seconds integer NOT NULL DEFAULT 300,
-  is_enabled      boolean NOT NULL DEFAULT true,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT uptime_checks_interval_chk CHECK (interval_seconds >= 60)
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  website_id          uuid NOT NULL REFERENCES websites (id) ON DELETE CASCADE,
+  user_id             uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  enabled             boolean NOT NULL DEFAULT true,
+  frequency_minutes   integer NOT NULL DEFAULT 30,
+  last_checked_at     timestamptz,
+  next_check_at       timestamptz,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now(),
+  -- Legacy columns retained for backwards compatibility with older internal jobs.
+  url                text,
+  interval_seconds   integer NOT NULL DEFAULT 300,
+  is_enabled         boolean NOT NULL DEFAULT true,
+  CONSTRAINT uptime_checks_frequency_minutes_chk CHECK (frequency_minutes >= 1)
 );
 
-CREATE INDEX uptime_checks_website_idx ON uptime_checks (website_id) WHERE is_enabled = true;
+CREATE UNIQUE INDEX uptime_checks_website_uidx ON uptime_checks (website_id);
+CREATE INDEX uptime_checks_enabled_idx ON uptime_checks (enabled);
+CREATE INDEX uptime_checks_next_check_at_idx ON uptime_checks (next_check_at);
+CREATE INDEX uptime_checks_website_id_idx ON uptime_checks (website_id);
+CREATE INDEX uptime_checks_user_id_idx ON uptime_checks (user_id);
 
 CREATE TABLE uptime_logs (
-  id             bigserial PRIMARY KEY,
-  website_id     uuid NOT NULL REFERENCES websites (id) ON DELETE CASCADE,
-  uptime_check_id uuid REFERENCES uptime_checks (id) ON DELETE SET NULL,
-  checked_at     timestamptz NOT NULL DEFAULT now(),
-  http_status    integer,
-  response_time_ms integer,
-  is_up          boolean NOT NULL,
-  error_message  text
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  uptime_check_id   uuid NOT NULL REFERENCES uptime_checks (id) ON DELETE CASCADE,
+  website_id        uuid NOT NULL REFERENCES websites (id) ON DELETE CASCADE,
+  user_id           uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  status            text NOT NULL CHECK (status IN ('up', 'down', 'degraded', 'error')),
+  status_code       integer,
+  response_time_ms  integer,
+  checked_at        timestamptz NOT NULL DEFAULT now(),
+  error_message     text,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  -- Legacy columns retained for backwards compatibility with existing reads.
+  http_status       integer,
+  is_up             boolean
 );
 
-CREATE INDEX uptime_logs_website_time_idx ON uptime_logs (website_id, checked_at DESC);
-CREATE INDEX uptime_logs_check_time_idx ON uptime_logs (uptime_check_id, checked_at DESC);
+CREATE INDEX uptime_logs_website_id_idx ON uptime_logs (website_id);
+CREATE INDEX uptime_logs_user_id_idx ON uptime_logs (user_id);
+CREATE INDEX uptime_logs_checked_at_desc_idx ON uptime_logs (checked_at DESC);
+CREATE INDEX uptime_logs_status_idx ON uptime_logs (status);
 
 -- ---------------------------------------------------------------------------
 -- Alerts (downtime, traffic anomalies, future rule types)

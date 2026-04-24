@@ -1,6 +1,24 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { WaveWordmark } from "@/components/brand/WaveWordmark";
 import { ThemePicker } from "@/components/theme/ThemePicker";
+import { DEFAULT_DESCRIPTION, HOME_TITLE, SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
+
+export const metadata: Metadata = {
+  title: HOME_TITLE,
+  description: DEFAULT_DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: `${HOME_TITLE} · ${SITE_NAME_DISPLAY}`,
+    description: DEFAULT_DESCRIPTION,
+  },
+  twitter: {
+    title: `${HOME_TITLE} · ${SITE_NAME_DISPLAY}`,
+    description: DEFAULT_DESCRIPTION,
+  },
+};
 
 export default function Home() {
   return (

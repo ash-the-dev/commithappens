@@ -15,6 +15,7 @@ import {
 import { buildResponseCodeVoice } from "@/lib/seo-voice/responseCodeVoice";
 import type { ResponseCodeComparison } from "@/lib/seo/report/comparison";
 import { getSeoPlaybookResponse, type SeoPlaybookIssueKey } from "@/lib/seo/playbook/responses";
+import { runSeoResponseCodesImportFromDashboard } from "@/lib/seo/response-codes/seo-response-codes-run-client";
 
 type ResponseCodeReportLike = {
   raw: {
@@ -302,25 +303,13 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
     setRunStatusMessage(null);
     setRunErrorMessage(null);
     try {
-      const res = await fetch("/api/internal/seo/response-codes/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ site_id: siteId }),
-      });
-      const rawBody = await res.text();
-      const payload = (() => {
-        try {
-          return rawBody ? (JSON.parse(rawBody) as { ok?: boolean; message?: string; stderr?: string }) : null;
-        } catch {
-          return null;
-        }
-      })();
-      if (!res.ok || !payload?.ok) {
-        setRunErrorMessage(payload?.stderr || rawBody || "Failed to run crawl.");
+      const result = await runSeoResponseCodesImportFromDashboard(siteId);
+      if (!result.ok) {
+        setRunErrorMessage(result.error);
         return;
       }
       await fetchReport();
-      setRunStatusMessage(payload.message ?? "Crawl finished and report refreshed.");
+      setRunStatusMessage(result.message || "Crawl finished and report refreshed.");
     } catch (err) {
       setRunErrorMessage(err instanceof Error ? err.message : "Failed to run crawl.");
     } finally {
@@ -431,7 +420,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-cyan-200/30 bg-linear-to-br from-slate-900/95 via-slate-900/92 to-indigo-950/90 p-5 shadow-2xl">
             <p className="text-xs font-semibold uppercase tracking-widest text-cyan-200">Crawl in progress</p>
-            <h4 className="mt-2 text-lg font-semibold text-white">Running Apify crawl + importing report</h4>
+            <h4 className="mt-2 text-lg font-semibold text-white">Crawling your site and importing the report</h4>
             <p className="mt-2 text-base font-semibold text-cyan-100">{RUNNING_LINES[runningLineIdx]}</p>
             <p className="mt-2 text-sm text-slate-200">
               This can take around 1-3 minutes. Keep this tab open; we will refresh data automatically when it completes.

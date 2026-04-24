@@ -1,4 +1,5 @@
 import { getPool } from "@/lib/db/pool";
+import { CRAWLER_USER_AGENT_POSTGRES_REGEX } from "@/lib/ingestion/crawler-user-agent";
 
 type DbSiteRow = {
   id: string;
@@ -204,15 +205,17 @@ export async function getDashboardSiteSnapshots(userId: string): Promise<{
 
   const sessionsResult = await pool.query<DbSessionAggRow>(
     `SELECT
-       website_id,
-       count(DISTINCT session_id) FILTER (WHERE occurred_at >= now() - interval '30 days')::text AS visits_30d,
-       count(*) FILTER (WHERE occurred_at >= now() - interval '24 hours')::text AS pageviews_24h,
-       count(DISTINCT session_id) FILTER (WHERE occurred_at >= now() - interval '24 hours')::text AS visits_24h,
-       max(occurred_at)::text AS last_pageview_at
-     FROM pageviews
-     WHERE website_id = ANY($1::uuid[])
-     GROUP BY website_id`,
-    [siteIds],
+       p.website_id,
+       count(DISTINCT p.session_id) FILTER (WHERE p.occurred_at >= now() - interval '30 days')::text AS visits_30d,
+       count(*) FILTER (WHERE p.occurred_at >= now() - interval '24 hours')::text AS pageviews_24h,
+       count(DISTINCT p.session_id) FILTER (WHERE p.occurred_at >= now() - interval '24 hours')::text AS visits_24h,
+       max(p.occurred_at)::text AS last_pageview_at
+     FROM pageviews p
+     INNER JOIN sessions s ON s.id = p.session_id
+     WHERE p.website_id = ANY($1::uuid[])
+       AND (s.user_agent IS NULL OR s.user_agent !~* $2::text)
+     GROUP BY p.website_id`,
+    [siteIds, CRAWLER_USER_AGENT_POSTGRES_REGEX],
   );
 
   const sessionsBySite = new Map<string, DbSessionAggRow>();

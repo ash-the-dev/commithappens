@@ -1,7 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { CommitHappensMark } from "@/components/brand/CommitHappensMark";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: `Sign in to your ${SITE_NAME_DISPLAY} account.`,
+  robots: { index: false, follow: true },
+  alternates: { canonical: "/login" },
+};
 
 export default function LoginPage() {
   return (

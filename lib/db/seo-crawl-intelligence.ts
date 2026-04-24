@@ -17,10 +17,24 @@ export type SeoCrawlTopIssue = {
   url: string;
   status: number | null;
   title: string | null;
+  h1: string | null;
+  meta_description: string | null;
+  /** Count of out-links the crawl stored for this page, when the payload was an array. */
+  internal_links_count: number | null;
   issue_type: string;
   issue_severity: string;
   crawl_notes: string | null;
 };
+
+function countLinks(links: unknown): number | null {
+  if (links == null) return null;
+  if (Array.isArray(links)) return links.length;
+  if (typeof links === "object" && "length" in (links as object)) {
+    const n = (links as { length: unknown }).length;
+    return typeof n === "number" && Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
 
 export async function getLatestSeoCrawlRun(siteId: string): Promise<SeoCrawlRunRow | null> {
   const pool = getPool();
@@ -76,11 +90,14 @@ export async function getTopCrawlIssues(siteId: string, limit = 3): Promise<SeoC
     url: string;
     status: string | null;
     title: string | null;
+    h1: string | null;
+    meta_description: string | null;
+    links: unknown;
     issue_type: string | null;
     issue_severity: string | null;
     crawl_notes: string | null;
   }>(
-    `SELECT p.url, p.status::text, p.title, p.issue_type, p.issue_severity, p.crawl_notes
+    `SELECT p.url, p.status::text, p.title, p.h1, p.meta_description, p.links, p.issue_type, p.issue_severity, p.crawl_notes
      FROM seo_crawl_pages p
      WHERE p.site_id = $1::text
        AND p.crawl_run_id = (
@@ -105,6 +122,9 @@ export async function getTopCrawlIssues(siteId: string, limit = 3): Promise<SeoC
     url: row.url,
     status: row.status != null && row.status !== "" ? Number(row.status) : null,
     title: row.title,
+    h1: row.h1,
+    meta_description: row.meta_description,
+    internal_links_count: countLinks(row.links),
     issue_type: row.issue_type ?? "unknown",
     issue_severity: row.issue_severity ?? "unknown",
     crawl_notes: row.crawl_notes,
