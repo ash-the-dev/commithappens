@@ -270,9 +270,10 @@ export function parseResponseCodesFromNormalizedRows(
       continue;
     }
 
+    // NormalizedCrawlRow.status = HTTP response code (same as `seo_crawl_pages.status`); not a DB column named status_code.
     const statusCode = row.status;
     if (statusCode == null) {
-      result.errors.push(`Skipped ${url}: missing or invalid status code`);
+      result.errors.push(`Skipped ${url}: missing or invalid HTTP status`);
       continue;
     }
 

@@ -21,8 +21,8 @@ function isAuthorized(request: Request): boolean {
 }
 
 async function runCheck(url: string): Promise<{
-  isUp: boolean;
-  httpStatus: number | null;
+  status: "up" | "down" | "degraded" | "error";
+  statusCode: number | null;
   responseTimeMs: number;
   errorMessage: string | null;
 }> {
@@ -39,8 +39,13 @@ async function runCheck(url: string): Promise<{
     });
     clearTimeout(timeout);
     return {
-      isUp: res.status >= 200 && res.status < 400,
-      httpStatus: res.status,
+      status:
+        res.status >= 500
+          ? "down"
+          : (res.status >= 400 && res.status < 500) || Date.now() - started > 3000
+            ? "degraded"
+            : "up",
+      statusCode: res.status,
       responseTimeMs: Date.now() - started,
       errorMessage: null,
     };
@@ -53,8 +58,8 @@ async function runCheck(url: string): Promise<{
           : err.message
         : "request_failed";
     return {
-      isUp: false,
-      httpStatus: null,
+      status: "error",
+      statusCode: null,
       responseTimeMs: Date.now() - started,
       errorMessage: message.slice(0, 1000),
     };
@@ -78,7 +83,7 @@ async function run(request: Request): Promise<Response> {
     for (const check of checks) {
       attempted += 1;
       const result = await runCheck(check.url);
-      if (result.isUp) {
+      if (result.status === "up") {
         succeeded += 1;
       } else {
         failed += 1;
@@ -88,10 +93,11 @@ async function run(request: Request): Promise<Response> {
         await insertUptimeLog({
           websiteId: check.website_id,
           uptimeCheckId: check.uptime_check_id,
+          userId: null,
           checkedAt,
-          httpStatus: result.httpStatus,
+          status: result.status,
+          statusCode: result.statusCode,
           responseTimeMs: result.responseTimeMs,
-          isUp: result.isUp,
           errorMessage: result.errorMessage,
         });
         inserted += 1;

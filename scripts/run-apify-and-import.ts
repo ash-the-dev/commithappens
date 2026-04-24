@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import { fileURLToPath } from "node:url";
+import { isInternalWebsiteIdFormat } from "@/lib/seo/crawl/website-site-id";
 import { importApifyDatasetToSupabase, requireEnv } from "./import-apify-run";
 
 dotenv.config({ path: ".env.local" });
@@ -135,6 +136,12 @@ export async function runApifyAndImportFromEnv(): Promise<void> {
   const supabaseUrl = requireEnv("SUPABASE_URL", LOG);
   const serviceKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY", LOG);
   const siteId = requireEnv("SEO_SITE_ID", LOG);
+  if (!isInternalWebsiteIdFormat(siteId)) {
+    LOG.err(
+      `SEO_SITE_ID must be your CommitHappens website UUID (websites.id), not an Apify id. Got: "${siteId}"`,
+    );
+    process.exit(1);
+  }
   const pollIntervalMs = readPollIntervalMs();
   const actorInput = parseActorInputFromEnv();
 

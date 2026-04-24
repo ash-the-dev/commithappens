@@ -64,13 +64,34 @@ export function normalizeApifyDatasetItem(
   return {
     row: {
       url,
-      status: toStatus(rec.status),
+      // DB column is `status` (HTTP code). Apify may send status, statusCode, status_code, etc.
+      status: firstHttpStatusFromRecord(rec),
       title: toNonEmptyString(rec.title),
-      metaDescription: toNonEmptyString(rec.metaDescription),
+      metaDescription: toNonEmptyString(
+        (rec as Record<string, unknown>).metaDescription ?? (rec as Record<string, unknown>).meta_description,
+      ),
       h1: toNonEmptyString(rec.h1),
       links: toLinkArray(rec.links),
     },
   };
+}
+
+function firstHttpStatusFromRecord(rec: Record<string, unknown>): number | null {
+  const keys = [
+    "status",
+    "statusCode",
+    "status_code",
+    "httpStatus",
+    "httpStatusCode",
+    "httpstatus",
+  ] as const;
+  for (const k of keys) {
+    if (k in rec) {
+      const n = toStatus(rec[k]);
+      if (n != null) return n;
+    }
+  }
+  return null;
 }
 
 export function normalizeApifyDatasetItems(

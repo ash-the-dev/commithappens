@@ -51,6 +51,11 @@ import { DashboardOverviewCards } from "@/components/dashboard/DashboardOverview
 import type { OverviewCard } from "@/components/dashboard/DashboardOverviewCards";
 import { getBillingAccess } from "@/lib/billing/access";
 import { IntelligencePaywallCard } from "@/components/dashboard/IntelligencePaywallCard";
+import { UptimeMonitorCard } from "@/components/dashboard/UptimeMonitorCard";
+import { getWebsiteUptimeHistory, getWebsiteUptimeSnapshot } from "@/lib/db/uptime";
+import { SeoCrawlIntelligenceSection } from "@/components/dashboard/SeoCrawlIntelligenceSection";
+import { PremiumTeaserCard } from "@/components/dashboard/PremiumTeaserCard";
+import { getLatestSeoCrawlRun, getTopCrawlIssues } from "@/lib/db/seo-crawl-intelligence";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -68,9 +73,13 @@ export default async function SiteDetailPage({ params }: Props) {
   const seoEnabled = billing.seoEnabled;
   const canUseIntelligence = billing.canUseIntelligence;
 
-  const [analytics, liveActivity] = await Promise.all([
+  const [analytics, liveActivity, uptimeSnapshot, uptimeHistory, crawlSnapshot, topCrawlIssues] = await Promise.all([
     getSiteAnalytics(site.id),
     getSiteLiveActivity(site.id, 25),
+    getWebsiteUptimeSnapshot(site.id),
+    getWebsiteUptimeHistory(site.id, billing.accountKind === "free" ? 6 : 20),
+    getLatestSeoCrawlRun(site.id).catch(() => null),
+    getTopCrawlIssues(site.id, 3).catch(() => []),
   ]);
 
   let threatOverview = emptyWebsiteThreatOverview();
@@ -230,19 +239,20 @@ export default async function SiteDetailPage({ params }: Props) {
       ];
 
  return (
-    <main className="relative mx-auto max-w-6xl space-y-10 px-6 py-12">
+    <main className="relative isolate mx-auto max-w-6xl space-y-10 overflow-hidden rounded-b-[1.5rem] px-6 py-12 sm:px-7">
+      <div className="ui-dashboard-ambient" aria-hidden />
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 rounded-[2.2rem] bg-[radial-gradient(circle_at_top,rgba(246,121,208,0.18),transparent_58%)]"
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-80 bg-[radial-gradient(circle_at_top,rgba(246,121,208,0.18),transparent_58%)]"
         aria-hidden
       />
       <div>
         <Link
           href="/dashboard"
-          className="text-xs font-semibold uppercase tracking-wide text-brand hover:underline"
+          className="text-xs font-bold uppercase tracking-[0.14em] text-brand/90 transition hover:text-brand hover:underline"
         >
           ← All sites
         </Link>
-        <h1 className="mt-4 text-3xl font-semibold text-white">{site.name}</h1>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{site.name}</h1>
         <p className="mt-2 text-sm text-brand-muted">{site.primary_domain}</p>
       </div>
 
@@ -298,7 +308,37 @@ export default async function SiteDetailPage({ params }: Props) {
       <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
         <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">Performance</summary>
         <div id="performance" className="px-2 pb-2">
-          <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
+          <div className="space-y-5">
+            <UptimeMonitorCard
+              snapshot={uptimeSnapshot}
+              history={uptimeHistory}
+              isFreeTier={billing.accountKind === "free"}
+            />
+            {billing.accountKind === "free" ? (
+              <PremiumTeaserCard
+                href="/pricing"
+                headline="Unlock richer monitoring history"
+                subtext="Paid plans include deeper uptime history and advanced monitoring analysis."
+                ctaLabel="Upgrade monitoring"
+              />
+            ) : null}
+            {billing.accountKind !== "free" ? (
+              <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
+            ) : null}
+          </div>
+        </div>
+      </details>
+
+      <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
+        <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">
+          SEO crawl snapshot
+        </summary>
+        <div className="px-2 pb-2">
+          <SeoCrawlIntelligenceSection
+            latestRun={crawlSnapshot}
+            topIssues={topCrawlIssues}
+            isFree={billing.accountKind === "free"}
+          />
         </div>
       </details>
 

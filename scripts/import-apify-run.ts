@@ -3,6 +3,13 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  buildSeoCrawlRunSummary,
+  classifySeoCrawlPageFromNormalizedRow,
+  type SeoCrawlRunSummary,
+} from "@/lib/seo/crawl/crawl-classification";
+import { buildSeoCrawlPageRow } from "@/lib/seo/crawl/seo-crawl-page";
+import { assertInternalWebsiteSiteId, isInternalWebsiteIdFormat } from "@/lib/seo/crawl/website-site-id";
 import { buildResponseCodeReportFromNormalizedRows } from "@/lib/seo/report/report-builder";
 import { normalizeApifyDatasetItems, type NormalizedCrawlRow } from "@/lib/seo/apify/normalize";
 
@@ -132,6 +139,116 @@ function chunkInsert<T>(rows: T[], size: number): T[][] {
   return out;
 }
 
+function normalizeHostLike(input: string): string | null {
+  const raw = input.trim().toLowerCase();
+  if (!raw) return null;
+  const withProtocol = /^https?:\/\//.test(raw) ? raw : `https://${raw}`;
+  try {
+    return new URL(withProtocol).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function canonicalPageKey(url: URL): string {
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  const path = url.pathname === "/" ? "/" : url.pathname.replace(/\/+$/, "");
+  return `${host}${path.toLowerCase()}`;
+}
+
+function looksLikeDocumentPath(pathname: string): boolean {
+  const lower = pathname.toLowerCase();
+  const excludedExt = [
+    ".js",
+    ".css",
+    ".map",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".pdf",
+    ".xml",
+    ".txt",
+    ".json",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".otf",
+    ".zip",
+    ".mp4",
+    ".webm",
+  ];
+  return !excludedExt.some((ext) => lower.endsWith(ext));
+}
+
+function filterNormalizedRowsForSite(
+  rows: NormalizedCrawlRow[],
+  primaryDomain: string,
+  logger: Logger,
+): NormalizedCrawlRow[] {
+  const primaryHost = normalizeHostLike(primaryDomain);
+  if (!primaryHost) return rows;
+  const allowedHosts = new Set<string>([primaryHost]);
+  if (primaryHost.startsWith("www.")) {
+    allowedHosts.add(primaryHost.slice(4));
+  } else {
+    allowedHosts.add(`www.${primaryHost}`);
+  }
+
+  const deduped = new Map<string, NormalizedCrawlRow>();
+  let droppedHost = 0;
+  let droppedScheme = 0;
+  let droppedNonDoc = 0;
+  let droppedMalformed = 0;
+
+  for (const row of rows) {
+    try {
+      const parsed = new URL(row.url);
+      const protocol = parsed.protocol.toLowerCase();
+      if (protocol !== "http:" && protocol !== "https:") {
+        droppedScheme += 1;
+        continue;
+      }
+      const host = parsed.hostname.toLowerCase();
+      if (!allowedHosts.has(host)) {
+        droppedHost += 1;
+        continue;
+      }
+      if (!looksLikeDocumentPath(parsed.pathname)) {
+        droppedNonDoc += 1;
+        continue;
+      }
+      deduped.set(canonicalPageKey(parsed), row);
+    } catch {
+      droppedMalformed += 1;
+    }
+  }
+
+  logger.info(
+    `Site filter kept ${deduped.size}/${rows.length} rows (dropped: host=${droppedHost}, non_http=${droppedScheme}, non_doc=${droppedNonDoc}, malformed=${droppedMalformed})`,
+  );
+  return [...deduped.values()];
+}
+
+async function fetchPrimaryDomainForSite(
+  supabase: SupabaseClient,
+  siteId: string,
+): Promise<string | null> {
+  const result = await supabase
+    .from("websites")
+    .select("primary_domain")
+    .eq("id", siteId)
+    .limit(1)
+    .maybeSingle();
+  if (result.error) {
+    throw new Error(`Failed to resolve website.primary_domain: ${result.error.message}`);
+  }
+  return (result.data?.primary_domain as string | undefined)?.trim() ?? null;
+}
+
 async function createCrawlRunWithFallback(
   supabase: SupabaseClient,
   input: {
@@ -148,6 +265,7 @@ async function createCrawlRunWithFallback(
     actor_id: input.actorId,
     actor_run_id: input.actorRunId,
     dataset_id: input.datasetId,
+    external_source_id: input.actorRunId ?? input.datasetId,
     status: "completed",
     pages_crawled: input.pagesCrawled,
   };
@@ -167,7 +285,33 @@ async function createCrawlRunWithFallback(
     throw new Error(`Failed to create seo_crawl_runs: ${errorMessage || "no row returned"}`);
   }
 
-  LOG.info("seo_crawl_runs is missing one or more optional columns; retrying with minimal payload.");
+  LOG.info("seo_crawl_runs is missing one or more optional columns; retrying with reduced payload.");
+  const reducedPayload = {
+    site_id: input.siteId,
+    source: "apify",
+    actor_id: input.actorId,
+    actor_run_id: input.actorRunId,
+    dataset_id: input.datasetId,
+    status: "completed",
+    pages_crawled: input.pagesCrawled,
+  };
+
+  const { data: reducedRun, error: reducedError } = await supabase
+    .from("seo_crawl_runs")
+    .insert(reducedPayload)
+    .select("id")
+    .single();
+
+  if (!reducedError && reducedRun?.id) {
+    return reducedRun.id as string;
+  }
+
+  const reducedMsg = reducedError?.message ?? "";
+  if (!reducedMsg.includes("Could not find") || !reducedMsg.includes("column")) {
+    throw new Error(`Failed to create seo_crawl_runs: ${reducedMsg || "no row returned"}`);
+  }
+
+  LOG.info("seo_crawl_runs retrying minimal payload (core columns only).");
   const minimalPayload = {
     site_id: input.siteId,
     status: "completed",
@@ -186,6 +330,37 @@ async function createCrawlRunWithFallback(
     );
   }
   return minimalRun.id as string;
+}
+
+/**
+ * After pages are inserted, persist aggregate counts and health_score on the crawl run row.
+ * If aggregate columns are not deployed yet, logs and skips (page rows would usually fail first).
+ */
+async function updateSeoCrawlRunAggregates(
+  supabase: SupabaseClient,
+  crawlRunId: string,
+  runSummary: SeoCrawlRunSummary,
+  logger: Logger,
+): Promise<void> {
+  const { error } = await supabase
+    .from("seo_crawl_runs")
+    .update({
+      healthy_count: runSummary.healthy_count,
+      notice_count: runSummary.notice_count,
+      warning_count: runSummary.warning_count,
+      critical_count: runSummary.critical_count,
+      health_score: runSummary.health_score,
+    })
+    .eq("id", crawlRunId);
+
+  if (!error) return;
+
+  const msg = error.message ?? "";
+  if (msg.includes("Could not find") && msg.includes("column")) {
+    logger.info("seo_crawl_runs is missing intelligence aggregate columns; skipping run summary update.");
+    return;
+  }
+  throw new Error(`Failed to update seo_crawl_runs aggregates: ${msg}`);
 }
 
 async function insertResponseCodeReportWithFallback(
@@ -294,25 +469,57 @@ export async function importApifyDatasetToSupabase({
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  const internalSiteId = await assertInternalWebsiteSiteId(supabase, siteId, "importApifyDatasetToSupabase");
+
+  const primaryDomain = await fetchPrimaryDomainForSite(supabase, internalSiteId);
+  const strictRows =
+    primaryDomain && primaryDomain.length > 0
+      ? filterNormalizedRowsForSite(normalized, primaryDomain, logger)
+      : normalized;
+  const filteredRows =
+    strictRows.length > 0
+      ? strictRows
+      : (() => {
+          logger.info(
+            "Strict same-site filter removed all rows; falling back to normalized crawl rows for this run.",
+          );
+          return normalized;
+        })();
+
   const crawlRunId = await createCrawlRunWithFallback(supabase, {
-    siteId,
+    siteId: internalSiteId,
     actorId,
     actorRunId,
     datasetId,
-    pagesCrawled: normalized.length,
+    pagesCrawled: filteredRows.length,
   });
   logger.info(`Crawl run created: ${crawlRunId}`);
 
-  const pageRows = normalized.map((row) => ({
-    crawl_run_id: crawlRunId,
-    site_id: siteId,
-    url: row.url,
-    status: row.status,
-    title: row.title,
-    meta_description: row.metaDescription,
-    h1: row.h1,
-    links: row.links,
+  const classified = filteredRows.map((row) => ({
+    row,
+    cls: classifySeoCrawlPageFromNormalizedRow(row),
   }));
+
+  const pageRows = classified.map(({ row, cls }) => {
+    const built = buildSeoCrawlPageRow({
+      crawlRunId,
+      websiteIdText: internalSiteId,
+      row,
+    });
+    return {
+      crawl_run_id: built.crawl_run_id,
+      site_id: built.site_id,
+      url: built.url,
+      status: built.status,
+      title: built.title,
+      meta_description: built.meta_description,
+      h1: built.h1,
+      links: built.links,
+      issue_type: cls.issue_type,
+      issue_severity: cls.issue_severity,
+      crawl_notes: cls.crawl_notes,
+    };
+  });
 
   for (const part of chunkInsert(pageRows, 500)) {
     const { error: pageErr } = await supabase.from("seo_crawl_pages").insert(part);
@@ -320,13 +527,16 @@ export async function importApifyDatasetToSupabase({
       throw new Error(`Failed to insert seo_crawl_pages: ${pageErr.message}`);
     }
   }
-  logger.info(`Crawl pages inserted: ${normalized.length}`);
+  logger.info(`Crawl pages inserted: ${filteredRows.length}`);
 
-  const report = buildResponseCodeReportFromNormalizedRows(normalized, sourceLabel);
+  const runSummary = buildSeoCrawlRunSummary(classified.map((x) => x.cls));
+  await updateSeoCrawlRunAggregates(supabase, crawlRunId, runSummary, logger);
+
+  const report = buildResponseCodeReportFromNormalizedRows(filteredRows, sourceLabel);
   logger.info("Report generated");
 
   const reportRow = await insertResponseCodeReportWithFallback(supabase, {
-    siteId,
+    siteId: internalSiteId,
     report,
     crawlRunId,
     datasetId,
@@ -342,7 +552,7 @@ export async function importApifyDatasetToSupabase({
     reportId: reportRow.id,
     reportCreatedAt: reportRow.created_at,
     rawItemsCount: rawItems.length,
-    normalizedCount: normalized.length,
+    normalizedCount: filteredRows.length,
   };
 }
 
@@ -354,6 +564,12 @@ export async function runImportApifyFromEnv(logger: Logger = LOG): Promise<void>
   const supabaseUrl = requireEnv("SUPABASE_URL", logger);
   const serviceKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY", logger);
   const siteId = requireEnv("SEO_SITE_ID", logger);
+  if (!isInternalWebsiteIdFormat(siteId)) {
+    logger.err(
+      `SEO_SITE_ID must be your CommitHappens website UUID (websites.id from the app / DB), not an Apify run or dataset id. Got: "${siteId}"`,
+    );
+    process.exit(1);
+  }
   const actorId = process.env.APIFY_ACTOR_ID?.trim() || null;
   const actorRunId = process.env.APIFY_ACTOR_RUN_ID?.trim() || null;
   const datasetIdFromEnv = process.env.APIFY_DATASET_ID?.trim() || null;
