@@ -83,7 +83,7 @@ export function SeoReportRefreshButton({ siteId, seoEnabled }: Props) {
             type="button"
             onClick={() => onReloadView()}
             disabled={isPending}
-            className="inline-flex min-h-9 items-center justify-center rounded-xl border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-900 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? "Refreshing..." : "Reload snapshot"}
           </button>
@@ -113,7 +113,7 @@ export function SeoReportRefreshButton({ siteId, seoEnabled }: Props) {
         type="button"
         onClick={() => void onRefreshReport()}
         disabled={isPending}
-        className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-xl border border-cyan-200/45 bg-cyan-400/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-50 transition hover:bg-cyan-400/25 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-xl border border-cyan-200/80 bg-cyan-300/35 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-50 transition hover:bg-cyan-300/45 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isPending ? "Refreshing..." : "Refresh Report"}
       </button>

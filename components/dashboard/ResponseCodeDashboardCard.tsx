@@ -475,9 +475,9 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
                 type="button"
                 onClick={() => void refreshStats()}
                 disabled={isRefreshingStats}
-                className="rounded-xl border border-white/35 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-white/20 disabled:opacity-60"
+                className="rounded-xl border border-cyan-200/70 bg-cyan-300/25 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-50 transition hover:bg-cyan-300/35 disabled:opacity-60"
               >
-                {isRefreshingStats ? "Refreshing..." : "Refresh"}
+                {isRefreshingStats ? "Refreshing..." : "Refresh Report"}
               </button>
               <button
                 type="button"
