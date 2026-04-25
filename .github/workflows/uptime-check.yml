@@ -1,0 +1,15 @@
+name: Uptime Check Trigger
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger uptime check
+        run: |
+          curl -X GET "https://commithappens.com/api/internal/uptime/check?secret=${{ secrets.UPTIME_CRON_SECRET }}"
