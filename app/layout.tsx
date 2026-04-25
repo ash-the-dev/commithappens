@@ -24,6 +24,9 @@ function metadataBaseUrl(): URL {
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 const googleAnalyticsId = "G-TFJWYTYBG6";
+const brandAssetVersion = "20260425";
+const ogImage = `/opengraph-image.png?v=${brandAssetVersion}`;
+const twitterImage = `/twitter-image.png?v=${brandAssetVersion}`;
 
 export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
@@ -34,6 +37,13 @@ export const metadata: Metadata = {
   description: DEFAULT_DESCRIPTION,
   keywords: defaultKeywords,
   applicationName: SITE_NAME_DISPLAY,
+  icons: {
+    icon: [
+      { url: `/favicon.ico?v=${brandAssetVersion}`, sizes: "32x32" },
+      { url: `/icon.png?v=${brandAssetVersion}`, type: "image/png", sizes: "32x32" },
+    ],
+    apple: [{ url: `/apple-icon.png?v=${brandAssetVersion}`, type: "image/png", sizes: "180x180" }],
+  },
   robots: {
     index: true,
     follow: true,
@@ -53,7 +63,7 @@ export const metadata: Metadata = {
     description: DEFAULT_DESCRIPTION,
     images: [
       {
-        url: "/opengraph-image.png",
+        url: ogImage,
         width: 1200,
         height: 630,
         alt: "Commit Happens",
@@ -64,7 +74,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${SITE_NAME_DISPLAY} — website & deploy health`,
     description: DEFAULT_DESCRIPTION,
-    images: ["/twitter-image.png"],
+    images: [twitterImage],
   },
   ...(googleVerification
     ? { verification: { google: googleVerification } }

@@ -1,5 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { isAdminEmail } from "@/lib/admin";
 import { findUserByEmail, verifyPassword } from "@/lib/db/users";
 
 export const authOptions: NextAuthOptions = {
@@ -38,11 +39,14 @@ export const authOptions: NextAuthOptions = {
       if (user?.id) {
         token.sub = user.id;
       }
+      const email = user?.email ?? token.email;
+      token.isAdmin = isAdminEmail(email);
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
+        session.user.isAdmin = token.isAdmin === true;
       }
       return session;
     },

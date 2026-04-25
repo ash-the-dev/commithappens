@@ -281,6 +281,56 @@ export async function getSeoCrawlRunByProviderRunId(providerRunId: string): Prom
   return result.rows[0] ?? null;
 }
 
+export async function getSeoCrawlRunStatusById(crawlRunId: string): Promise<{
+  id: string;
+  site_id: string;
+  user_id: string | null;
+  status: string;
+  pages_crawled: number;
+  error_message: string | null;
+  finished_at: string | null;
+  updated_at: string;
+} | null> {
+  await ensureSeoPipelineTables();
+  const pool = getPool();
+  const result = await pool.query<{
+    id: string;
+    site_id: string;
+    user_id: string | null;
+    status: string;
+    pages_crawled: string | null;
+    error_message: string | null;
+    finished_at: string | null;
+    updated_at: string;
+  }>(
+    `SELECT
+       id,
+       site_id,
+       user_id::text,
+       status,
+       coalesce(pages_crawled, 0)::text AS pages_crawled,
+       error_message,
+       finished_at::text,
+       updated_at::text
+     FROM seo_crawl_runs
+     WHERE id = $1::uuid
+     LIMIT 1`,
+    [crawlRunId],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    site_id: row.site_id,
+    user_id: row.user_id,
+    status: row.status,
+    pages_crawled: Number(row.pages_crawled ?? 0),
+    error_message: row.error_message,
+    finished_at: row.finished_at,
+    updated_at: row.updated_at,
+  };
+}
+
 function toExistingRows(results: NormalizedApifySeoResults): Array<{
   row: NormalizedCrawlRow;
   cls: ReturnType<typeof classifySeoCrawlPage>;

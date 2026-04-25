@@ -160,8 +160,8 @@ async function computeImpactForChange(
           (SELECT count(*)::text FROM pageviews p WHERE p.website_id = $1::uuid AND p.occurred_at >= $4::timestamptz AND p.occurred_at < $5::timestamptz) AS pageviews_after,
           (SELECT count(*)::text FROM events e WHERE e.website_id = $1::uuid AND e.occurred_at >= $2::timestamptz AND e.occurred_at < $3::timestamptz) AS events_before,
           (SELECT count(*)::text FROM events e WHERE e.website_id = $1::uuid AND e.occurred_at >= $4::timestamptz AND e.occurred_at < $5::timestamptz) AS events_after,
-          (SELECT count(*)::text FROM uptime_logs u WHERE u.website_id = $1::uuid AND u.checked_at >= $2::timestamptz AND u.checked_at < $3::timestamptz AND u.is_up = false) AS uptime_failures_before,
-          (SELECT count(*)::text FROM uptime_logs u WHERE u.website_id = $1::uuid AND u.checked_at >= $4::timestamptz AND u.checked_at < $5::timestamptz AND u.is_up = false) AS uptime_failures_after`,
+          (SELECT count(*)::text FROM uptime_checks u WHERE u.site_id = $1::uuid AND u.checked_at >= $2::timestamptz AND u.checked_at < $3::timestamptz AND u.is_up = false) AS uptime_failures_before,
+          (SELECT count(*)::text FROM uptime_checks u WHERE u.site_id = $1::uuid AND u.checked_at >= $4::timestamptz AND u.checked_at < $5::timestamptz AND u.is_up = false) AS uptime_failures_after`,
         [
           change.website_id,
           beforeStart.toISOString(),

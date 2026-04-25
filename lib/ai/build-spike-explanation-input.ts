@@ -140,8 +140,8 @@ export async function buildSpikeExplanationInput(
       ),
       pool.query<{ failures_target: string; failures_baseline: string }>(
         `SELECT
-           (SELECT count(*)::text FROM uptime_logs u WHERE u.website_id = $1::uuid AND u.checked_at >= $2::timestamptz AND u.checked_at < $3::timestamptz AND u.is_up = false) AS failures_target,
-           (SELECT count(*)::text FROM uptime_logs u WHERE u.website_id = $1::uuid AND u.checked_at >= $4::timestamptz AND u.checked_at < $5::timestamptz AND u.is_up = false) AS failures_baseline`,
+           (SELECT count(*)::text FROM uptime_checks u WHERE u.site_id = $1::uuid AND u.checked_at >= $2::timestamptz AND u.checked_at < $3::timestamptz AND u.is_up = false) AS failures_target,
+           (SELECT count(*)::text FROM uptime_checks u WHERE u.site_id = $1::uuid AND u.checked_at >= $4::timestamptz AND u.checked_at < $5::timestamptz AND u.is_up = false) AS failures_baseline`,
         [
           websiteId,
           targetStart.toISOString(),

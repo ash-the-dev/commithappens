@@ -109,16 +109,13 @@ export default async function SiteDetailPage({ params }: Props) {
     getSiteAnalytics(site.id),
     getSiteLiveActivity(site.id, 25),
     getWebsiteUptimeSnapshot(site.id),
-    getWebsiteUptimeHistory(site.id, 48).catch(() => []),
+    getWebsiteUptimeHistory(site.id, 50).catch(() => []),
     getLatestSeoCrawlRun(site.id).catch(() => null),
     getTopCrawlIssues(site.id, 3).catch(() => []),
     getSeoCrawlRunHistory(site.id, 18).catch(() => []),
     getSeoCrawlOnPageBreakdown(site.id).catch(() => null),
   ]);
-  const uptimeCardHistory =
-    billing.accountKind === "free"
-      ? uptimeHistory.slice(0, 6)
-      : uptimeHistory.slice(0, 20);
+  const uptimeCardHistory = uptimeHistory.slice(0, 50);
   const siteTrendsInitial = buildSiteTrendsPayload(crawlRunHistory, uptimeHistory);
 
   let threatOverview = emptyWebsiteThreatOverview();

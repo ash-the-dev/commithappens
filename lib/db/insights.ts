@@ -250,8 +250,8 @@ export async function explainWebsiteSpike(
         `SELECT
            count(*)::text AS checks,
            count(*) FILTER (WHERE is_up = false)::text AS failed
-         FROM uptime_logs
-         WHERE website_id = $1
+        FROM uptime_checks
+        WHERE site_id = $1
            AND checked_at >= $2::timestamptz
            AND checked_at < $3::timestamptz`,
         [websiteId, target.toISOString(), next.toISOString()],

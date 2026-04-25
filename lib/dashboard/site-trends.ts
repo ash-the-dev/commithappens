@@ -81,7 +81,6 @@ export function buildSiteTrendsPayload(
   const upAsc = historyAsc(uptimeLogs);
   const uptimePct = (u: WebsiteUptimeHistoryItem): number => {
     if (u.status === "up") return 100;
-    if (u.status === "degraded") return 70;
     return 0;
   };
   const uptime = upAsc.map((u) => ({

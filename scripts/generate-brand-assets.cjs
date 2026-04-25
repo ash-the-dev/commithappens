@@ -8,41 +8,9 @@ const fs = require("fs");
 
 const root = path.join(__dirname, "..");
 const logoInput = path.join(root, "app", "Assets", "Logo.png");
+const iconInput = path.join(root, "app", "Assets", "LittleCommitHappens.png");
 const ogInput = path.join(root, "app", "Assets", "CommitHappensOG.png");
 const publicLogo = path.join(root, "public", "brand", "commit-happens.png");
-
-function currentMarkSvg(size) {
-  return Buffer.from(`
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#18051f"/>
-          <stop offset="0.55" stop-color="#050816"/>
-          <stop offset="1" stop-color="#071328"/>
-        </linearGradient>
-        <linearGradient id="stroke" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#f679d0"/>
-          <stop offset="0.58" stop-color="#ff5fbe"/>
-          <stop offset="1" stop-color="#a855f7"/>
-        </linearGradient>
-      </defs>
-      <rect width="${size}" height="${size}" rx="${size * 0.22}" fill="url(#bg)"/>
-      <text
-        x="50%"
-        y="53%"
-        text-anchor="middle"
-        dominant-baseline="middle"
-        font-family="Arial Black, Impact, sans-serif"
-        font-size="${size * 0.78}"
-        font-weight="900"
-        fill="#050816"
-        stroke="url(#stroke)"
-        stroke-width="${size * 0.07}"
-        paint-order="stroke fill"
-      >C</text>
-    </svg>
-  `);
-}
 
 function icoFromPng(png) {
   const header = Buffer.alloc(22);
@@ -63,7 +31,7 @@ function icoFromPng(png) {
 }
 
 async function main() {
-  for (const input of [logoInput, ogInput]) {
+  for (const input of [logoInput, iconInput, ogInput]) {
     if (!fs.existsSync(input)) {
       console.error("Missing:", input);
       process.exit(1);
@@ -73,7 +41,7 @@ async function main() {
   fs.mkdirSync(path.dirname(publicLogo), { recursive: true });
   await fs.promises.copyFile(logoInput, publicLogo);
 
-  const iconPipeline = () => sharp(currentMarkSvg(512));
+  const iconPipeline = () => sharp(iconInput);
 
   await iconPipeline()
     .resize(32, 32, {

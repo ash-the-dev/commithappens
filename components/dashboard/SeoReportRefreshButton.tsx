@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const GENERIC_ERR = "Stats didn’t refresh. Rude. Try again.";
 const RUNNING_LINES = [
@@ -34,8 +34,10 @@ export function SeoReportRefreshButton({
   variant = "inline",
 }: Props) {
   const router = useRouter();
+  const crawlPollTimerRef = useRef<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isStartingCrawl, setIsStartingCrawl] = useState(false);
+  const [isWaitingForCrawl, setIsWaitingForCrawl] = useState(false);
   const [feedback, setFeedback] = useState<"success" | "error" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [crawlStartedAt, setCrawlStartedAt] = useState<number | null>(null);
@@ -48,6 +50,91 @@ export function SeoReportRefreshButton({
       setMessage(null);
     }, 15000);
   }, []);
+
+  const clearCrawlPollTimer = useCallback(() => {
+    if (crawlPollTimerRef.current != null) {
+      window.clearTimeout(crawlPollTimerRef.current);
+      crawlPollTimerRef.current = null;
+    }
+  }, []);
+
+  const finishCrawlWait = useCallback(
+    (feedbackKind: "success" | "error", nextMessage: string) => {
+      clearCrawlPollTimer();
+      setIsWaitingForCrawl(false);
+      setCrawlStartedAt(null);
+      setCrawlElapsedSec(0);
+      setFeedback(feedbackKind);
+      setMessage(nextMessage);
+      clearFeedbackLater();
+    },
+    [clearCrawlPollTimer, clearFeedbackLater],
+  );
+
+  const pollCrawlStatus = useCallback(
+    (crawlRunId: string) => {
+      const maxAttempts = 90;
+      let attempt = 0;
+
+      const scheduleNextCheck = () => {
+        const pollMs = attempt < 6 ? 3000 : 5000;
+        crawlPollTimerRef.current = window.setTimeout(checkStatus, pollMs);
+      };
+
+      const checkStatus = async () => {
+        try {
+          const res = await fetch(`/api/seo/run-status?crawlRunId=${encodeURIComponent(crawlRunId)}`, {
+            method: "GET",
+            cache: "no-store",
+          });
+          const result = (await res.json()) as {
+            ok?: boolean;
+            status?: string;
+            pagesCrawled?: number;
+            errorMessage?: string | null;
+            message?: string;
+          };
+
+          if (!res.ok || result.ok === false) {
+            throw new Error(result.message || "Could not check crawl status.");
+          }
+
+          const status = result.status?.toLowerCase();
+          if (status === "succeeded" || status === "completed") {
+            router.refresh();
+            finishCrawlWait(
+              "success",
+              `Crawl finished${result.pagesCrawled ? `: ${result.pagesCrawled.toLocaleString("en-US")} pages saved` : ""}. Stats refreshed.`,
+            );
+            return;
+          }
+
+          if (status === "failed" || status === "aborted" || status === "timed-out" || status === "timed_out") {
+            finishCrawlWait("error", result.errorMessage || "Crawl failed before results were saved.");
+            return;
+          }
+
+          if (attempt + 1 >= maxAttempts) {
+            finishCrawlWait("success", "Crawl is still running. Refresh stats in a bit and the report should catch up.");
+            return;
+          }
+
+          attempt += 1;
+          scheduleNextCheck();
+        } catch {
+          if (attempt + 1 >= maxAttempts) {
+            finishCrawlWait("error", "Crawl started, but status checks stopped responding. Refresh stats in a bit.");
+            return;
+          }
+          attempt += 1;
+          scheduleNextCheck();
+        }
+      };
+
+      scheduleNextCheck();
+    },
+    [finishCrawlWait, router],
+  );
 
   const onReloadView = useCallback(() => {
     setIsRefreshing(true);
@@ -86,6 +173,7 @@ export function SeoReportRefreshButton({
       const result = (await res.json()) as {
         ok?: boolean;
         status?: string;
+        crawlRunId?: string;
         message?: string;
         error?: string;
       };
@@ -95,33 +183,45 @@ export function SeoReportRefreshButton({
         return;
       }
       setFeedback("success");
-      setMessage(result.message || "Crawl started. Results will update shortly.");
+      setMessage(result.message || "Crawl started. Waiting for the report to save...");
+      if (result.crawlRunId) {
+        setIsWaitingForCrawl(true);
+        pollCrawlStatus(result.crawlRunId);
+      } else {
+        setCrawlStartedAt(null);
+        setCrawlElapsedSec(0);
+        clearFeedbackLater();
+      }
     } catch {
       setFeedback("error");
       setMessage("Crawl didn’t start. Something’s off.");
-    } finally {
-      setIsStartingCrawl(false);
       setCrawlStartedAt(null);
       setCrawlElapsedSec(0);
       clearFeedbackLater();
+    } finally {
+      setIsStartingCrawl(false);
     }
-  }, [clearFeedbackLater, siteId]);
+  }, [clearFeedbackLater, pollCrawlStatus, siteId]);
 
   useEffect(() => {
-    if (!isStartingCrawl || !crawlStartedAt) return;
+    if ((!isStartingCrawl && !isWaitingForCrawl) || !crawlStartedAt) return;
     const timer = window.setInterval(() => {
       setCrawlElapsedSec(Math.floor((Date.now() - crawlStartedAt) / 1000));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [crawlStartedAt, isStartingCrawl]);
+  }, [crawlStartedAt, isStartingCrawl, isWaitingForCrawl]);
 
   useEffect(() => {
-    if (!isStartingCrawl || !crawlStartedAt) return;
+    if ((!isStartingCrawl && !isWaitingForCrawl) || !crawlStartedAt) return;
     const rotation = window.setInterval(() => {
       setRunningLineIdx((prev) => (prev + 1) % RUNNING_LINES.length);
     }, 2000);
     return () => window.clearInterval(rotation);
-  }, [crawlStartedAt, isStartingCrawl]);
+  }, [crawlStartedAt, isStartingCrawl, isWaitingForCrawl]);
+
+  useEffect(() => {
+    return () => clearCrawlPollTimer();
+  }, [clearCrawlPollTimer]);
 
   const heroBase =
     "inline-flex min-h-11 w-full min-w-0 max-w-sm items-center justify-center gap-2 rounded-2xl border bg-cyan-300/20 px-5 py-2.5 text-sm font-semibold uppercase tracking-[0.1em] text-cyan-50 shadow-[0_12px_40px_-20px_rgba(34,211,238,0.45)] transition hover:bg-cyan-300/32 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:max-w-none";
@@ -130,7 +230,8 @@ export function SeoReportRefreshButton({
     "inline-flex min-h-9 shrink-0 items-center justify-center rounded-xl border border-cyan-200/80 bg-cyan-300/35 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-50 transition hover:bg-cyan-300/45 disabled:cursor-not-allowed disabled:opacity-60";
   const inlineReload =
     "inline-flex min-h-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-900 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60";
-  const showCrawlOverlay = seoEnabled && isStartingCrawl && crawlStartedAt !== null && !crawlUnavailableReason;
+  const isCrawlBusy = isStartingCrawl || isWaitingForCrawl;
+  const showCrawlOverlay = seoEnabled && isCrawlBusy && crawlStartedAt !== null && !crawlUnavailableReason;
   const runStage =
     crawlElapsedSec < 20 ? "fetching" : crawlElapsedSec < 55 ? "analyzing" : "building report";
   const fakeProgress = Math.min(92, 14 + crawlElapsedSec * 1.25);
@@ -195,7 +296,7 @@ export function SeoReportRefreshButton({
       <button
         type="button"
         onClick={() => onReloadView()}
-        disabled={isRefreshing || isStartingCrawl}
+        disabled={isRefreshing || isCrawlBusy}
         className={variant === "hero" ? `${heroBase} ${heroBorder}` : inlinePrimary}
         aria-busy={isRefreshing}
       >
@@ -209,14 +310,14 @@ export function SeoReportRefreshButton({
         )}
       </button>
       {seoEnabled ? (
-      <button
+        <button
           type="button"
           onClick={() => void onRunCrawl()}
-        disabled={isRefreshing || isStartingCrawl || Boolean(crawlUnavailableReason)}
+          disabled={isRefreshing || isCrawlBusy || Boolean(crawlUnavailableReason)}
           className={variant === "hero" ? `${heroBase} border-violet-200/70 bg-violet-300/18 text-violet-50 hover:bg-violet-300/28` : "inline-flex min-h-9 shrink-0 items-center justify-center rounded-xl border border-violet-200/80 bg-violet-100 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-violet-900 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-60"}
-          aria-busy={isStartingCrawl}
+          aria-busy={isCrawlBusy}
         >
-          {isStartingCrawl ? "Starting crawl…" : "Run SEO crawl"}
+          {isStartingCrawl ? "Starting crawl…" : isWaitingForCrawl ? "Saving report…" : "Run SEO crawl"}
         </button>
       ) : null}
       {feedback && message ? (

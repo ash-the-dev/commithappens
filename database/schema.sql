@@ -180,49 +180,54 @@ CREATE INDEX web_vitals_website_metric_time_idx ON web_vitals (website_id, metri
 -- ---------------------------------------------------------------------------
 -- Uptime monitoring
 -- ---------------------------------------------------------------------------
-CREATE TABLE uptime_checks (
+CREATE TABLE uptime_monitors (
   id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  website_id          uuid NOT NULL REFERENCES websites (id) ON DELETE CASCADE,
-  user_id             uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  enabled             boolean NOT NULL DEFAULT true,
-  frequency_minutes   integer NOT NULL DEFAULT 30,
-  last_checked_at     timestamptz,
-  next_check_at       timestamptz,
-  created_at          timestamptz NOT NULL DEFAULT now(),
-  updated_at          timestamptz NOT NULL DEFAULT now(),
-  -- Legacy columns retained for backwards compatibility with older internal jobs.
+  user_id            uuid REFERENCES users (id) ON DELETE CASCADE,
+  site_id            uuid REFERENCES websites (id) ON DELETE CASCADE,
   url                text,
-  interval_seconds   integer NOT NULL DEFAULT 300,
-  is_enabled         boolean NOT NULL DEFAULT true,
-  CONSTRAINT uptime_checks_frequency_minutes_chk CHECK (frequency_minutes >= 1)
+  enabled            boolean NOT NULL DEFAULT true,
+  frequency_minutes  integer NOT NULL DEFAULT 30,
+  last_checked_at    timestamptz,
+  next_check_at      timestamptz DEFAULT now(),
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT uptime_monitors_frequency_minutes_chk CHECK (frequency_minutes >= 1)
 );
 
-CREATE UNIQUE INDEX uptime_checks_website_uidx ON uptime_checks (website_id);
-CREATE INDEX uptime_checks_enabled_idx ON uptime_checks (enabled);
-CREATE INDEX uptime_checks_next_check_at_idx ON uptime_checks (next_check_at);
-CREATE INDEX uptime_checks_website_id_idx ON uptime_checks (website_id);
-CREATE INDEX uptime_checks_user_id_idx ON uptime_checks (user_id);
+CREATE INDEX uptime_monitors_enabled_next_idx ON uptime_monitors (enabled, next_check_at);
+CREATE INDEX uptime_monitors_site_idx ON uptime_monitors (site_id);
+CREATE INDEX uptime_monitors_user_idx ON uptime_monitors (user_id);
 
+CREATE TABLE uptime_checks (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           uuid REFERENCES users (id) ON DELETE SET NULL,
+  site_id           uuid REFERENCES websites (id) ON DELETE SET NULL,
+  url               text NOT NULL,
+  status_code       integer,
+  response_time_ms  integer,
+  is_up             boolean NOT NULL,
+  error_message     text,
+  checked_at        timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX uptime_checks_site_checked_idx ON uptime_checks (site_id, checked_at DESC);
+CREATE INDEX uptime_checks_user_checked_idx ON uptime_checks (user_id, checked_at DESC);
+
+-- Legacy backup only. New code writes uptime_checks and reads uptime_monitors + uptime_checks.
 CREATE TABLE uptime_logs (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  uptime_check_id   uuid NOT NULL REFERENCES uptime_checks (id) ON DELETE CASCADE,
-  website_id        uuid NOT NULL REFERENCES websites (id) ON DELETE CASCADE,
-  user_id           uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  status            text NOT NULL CHECK (status IN ('up', 'down', 'degraded', 'error')),
+  uptime_check_id   uuid,
+  website_id        uuid,
+  user_id           uuid,
+  status            text,
   status_code       integer,
   response_time_ms  integer,
   checked_at        timestamptz NOT NULL DEFAULT now(),
   error_message     text,
   created_at        timestamptz NOT NULL DEFAULT now(),
-  -- Legacy columns retained for backwards compatibility with existing reads.
   http_status       integer,
   is_up             boolean
 );
-
-CREATE INDEX uptime_logs_website_id_idx ON uptime_logs (website_id);
-CREATE INDEX uptime_logs_user_id_idx ON uptime_logs (user_id);
-CREATE INDEX uptime_logs_checked_at_desc_idx ON uptime_logs (checked_at DESC);
-CREATE INDEX uptime_logs_status_idx ON uptime_logs (status);
 
 -- ---------------------------------------------------------------------------
 -- Alerts (downtime, traffic anomalies, future rule types)

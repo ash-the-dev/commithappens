@@ -1,9 +1,9 @@
 import { getUserSubscription, type UserSubscription } from "@/lib/db/subscriptions";
 import { getUserPlanLimits, type UserPlanLimits } from "@/lib/billing/plan-limits";
 import type { PlanKey } from "@/lib/billing/plans";
+import { isAdminEmail } from "@/lib/admin";
 
 const ENABLED_STATUSES = new Set(["trialing", "active", "past_due"]);
-const ADMIN_BYPASS_EMAILS = new Set(["ashthedev0@gmail.com"]);
 
 export type AccountKind = "free" | "situationship" | "committed" | "unlimited";
 
@@ -51,8 +51,7 @@ export async function getBillingAccess(
   userId: string,
   userEmail?: string | null,
 ): Promise<BillingEntitlements> {
-  const normalizedEmail = userEmail?.trim().toLowerCase();
-  const isAdmin = Boolean(normalizedEmail && ADMIN_BYPASS_EMAILS.has(normalizedEmail));
+  const isAdmin = isAdminEmail(userEmail);
   if (isAdmin) {
     const limits = getUserPlanLimits("unlimited");
     return {

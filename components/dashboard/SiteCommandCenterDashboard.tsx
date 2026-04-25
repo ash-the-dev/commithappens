@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, type ReactNode, useMemo, useState } from "react";
+import { Children, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -267,6 +267,28 @@ export function SiteCommandCenterDashboard({
   const panels = Children.toArray(children);
   const [activeTab, setActiveTab] = useState(tabs[0]?.id ?? "");
   const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab));
+  const tabIds = useMemo(() => new Set(tabs.map((tab) => tab.id)), [tabs]);
+
+  const activateTab = useCallback(
+    (tabId: string, syncHash = false) => {
+      if (!tabIds.has(tabId)) return;
+      setActiveTab(tabId);
+      if (syncHash && typeof window !== "undefined") {
+        window.history.replaceState(null, "", `#${tabId}`);
+      }
+    },
+    [tabIds],
+  );
+
+  useEffect(() => {
+    const activateFromHash = () => {
+      const tabId = window.location.hash.replace(/^#/, "");
+      if (tabId) activateTab(tabId);
+    };
+    activateFromHash();
+    window.addEventListener("hashchange", activateFromHash);
+    return () => window.removeEventListener("hashchange", activateFromHash);
+  }, [activateTab]);
 
   return (
     <div className="space-y-6">
@@ -275,7 +297,7 @@ export function SiteCommandCenterDashboard({
           <button
             key={card.id}
             type="button"
-            onClick={() => card.targetTab && setActiveTab(card.targetTab)}
+            onClick={() => card.targetTab && activateTab(card.targetTab, true)}
             className="group rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-[0_18px_60px_-42px_rgba(15,23,42,0.7)] transition hover:-translate-y-0.5 hover:border-blue-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
           >
             <div className={`h-1.5 rounded-full bg-linear-to-r ${cardAccent[card.accent]}`} aria-hidden />
@@ -308,7 +330,7 @@ export function SiteCommandCenterDashboard({
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => activateTab(tab.id, true)}
               className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
                 activeTab === tab.id
                   ? "border-cyan-200 bg-white text-slate-950 shadow-sm"

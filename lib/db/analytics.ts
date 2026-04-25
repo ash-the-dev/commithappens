@@ -198,12 +198,10 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
         return await pool.query<UptimeRow>(
           `SELECT
              count(*)::text AS checks_24h,
-             count(*) FILTER (
-               WHERE coalesce(status, CASE WHEN is_up THEN 'up' ELSE 'down' END) = 'up'
-             )::text AS checks_up_24h,
+             count(*) FILTER (WHERE is_up = true)::text AS checks_up_24h,
              avg(response_time_ms)::text AS avg_response_24h
-           FROM uptime_logs
-           WHERE website_id = $1
+           FROM uptime_checks
+           WHERE site_id = $1
              AND checked_at >= now() - interval '24 hours'`,
           [websiteId],
         );
@@ -211,10 +209,10 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
         return pool.query<UptimeRow>(
           `SELECT
              count(*)::text AS checks_24h,
-             count(*) FILTER (WHERE is_up)::text AS checks_up_24h,
+             count(*) FILTER (WHERE is_up = true)::text AS checks_up_24h,
              avg(response_time_ms)::text AS avg_response_24h
-           FROM uptime_logs
-           WHERE website_id = $1
+           FROM uptime_checks
+           WHERE site_id = $1
              AND checked_at >= now() - interval '24 hours'`,
           [websiteId],
         );
