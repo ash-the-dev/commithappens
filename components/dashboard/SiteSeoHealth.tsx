@@ -108,10 +108,10 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
               : "Add an uptime check so you’re not learning about outages from angry tweets."}
           </p>
 
-          <details className="ui-dash-details mt-4 rounded-xl border border-slate-200/80 bg-white/70 p-3">
-            <summary className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-              For nerds (HTTP + checks)
-            </summary>
+          <div className="mt-4 rounded-xl border border-slate-200/80 bg-white/70 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+              HTTP + check details
+            </p>
             <div className="mt-3 space-y-2 text-xs text-slate-700">
               <p>
                 <span className="font-semibold">HTTP</span> = the request/response language browsers + bots use
@@ -130,7 +130,7 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
                   : "n/a"}
               </p>
             </div>
-          </details>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4">
@@ -244,10 +244,10 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
             titles, intros, internal links, speed, and structured data — in that order.
           </p>
 
-          <details className="ui-dash-details mt-4 rounded-xl border border-slate-200/80 bg-white/70 p-3">
-            <summary className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-              What we’ll add next (integrations)
-            </summary>
+          <div className="mt-4 rounded-xl border border-slate-200/80 bg-white/70 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+              Planned integrations
+            </p>
             <div className="mt-3 space-y-2 text-xs text-slate-700">
               <p>
                 <span className="font-semibold">Google Search Console (GSC)</span> = the closest thing to “what
@@ -263,7 +263,7 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
                 <span className="font-semibold"> RUM</span> (what you already collect) = what real users feel.
               </p>
             </div>
-          </details>
+          </div>
         </div>
       </div>
 

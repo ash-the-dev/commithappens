@@ -94,7 +94,6 @@ function buildSummary(input: ResponseCodeInsightsInput, status: VoiceStatusLabel
   const totalUrls = toNumber(overview.totalUrls);
   const issuesFound = toNumber(overview.issuesFound);
   const criticalCount = toNumber(overview.criticalCount);
-  const warningCount = toNumber(overview.warningCount);
   const healthScore = toNumber(overview.healthScore);
 
   if (status === "empty") {

@@ -5,7 +5,7 @@ import type { PlanKey } from "@/lib/billing/plans";
 const ENABLED_STATUSES = new Set(["trialing", "active", "past_due"]);
 const ADMIN_BYPASS_EMAILS = new Set(["ashthedev0@gmail.com"]);
 
-export type AccountKind = "free" | "situationship" | "committed";
+export type AccountKind = "free" | "situationship" | "committed" | "unlimited";
 
 export type BillingEntitlements = UserPlanLimits & {
   planKey: PlanKey | null;
@@ -28,9 +28,9 @@ function resolveAccountKind(
 ): { accountKind: AccountKind; planKey: PlanKey | null; limits: UserPlanLimits } {
   if (isAdmin) {
     return {
-      accountKind: "committed",
-      planKey: "committed",
-      limits: getUserPlanLimits("committed"),
+      accountKind: "unlimited",
+      planKey: "unlimited",
+      limits: getUserPlanLimits("unlimited"),
     };
   }
   if (isPaidActiveSubscription(sub) && sub?.planKey) {
@@ -53,8 +53,19 @@ export async function getBillingAccess(
 ): Promise<BillingEntitlements> {
   const normalizedEmail = userEmail?.trim().toLowerCase();
   const isAdmin = Boolean(normalizedEmail && ADMIN_BYPASS_EMAILS.has(normalizedEmail));
+  if (isAdmin) {
+    const limits = getUserPlanLimits("unlimited");
+    return {
+      ...limits,
+      planKey: "unlimited",
+      accountKind: "unlimited",
+      maxSites: limits.maxWebsites,
+      seoEnabled: limits.canUseSEO,
+    };
+  }
+
   const sub = await getUserSubscription(userId);
-  const { accountKind, planKey, limits } = resolveAccountKind(sub, isAdmin);
+  const { accountKind, planKey, limits } = resolveAccountKind(sub, false);
 
   return {
     ...limits,

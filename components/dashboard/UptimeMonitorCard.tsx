@@ -5,15 +5,14 @@ import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
 type Props = {
   snapshot: WebsiteUptimeSnapshot | null;
   history: WebsiteUptimeHistoryItem[];
-  isFreeTier: boolean;
 };
 
 function statusTone(status: WebsiteUptimeSnapshot["status"] | WebsiteUptimeHistoryItem["status"]) {
-  if (status === "up") return "text-emerald-200 border-emerald-300/40 bg-emerald-400/10";
-  if (status === "degraded") return "text-amber-200 border-amber-300/40 bg-amber-400/10";
+  if (status === "up") return "text-blue-700 border-blue-200 bg-blue-50";
+  if (status === "degraded") return "text-amber-700 border-amber-200 bg-amber-50";
   if (status === "down" || status === "error")
-    return "text-rose-200 border-rose-300/40 bg-rose-400/10";
-  return "text-slate-200 border-slate-300/40 bg-slate-400/10";
+    return "text-amber-800 border-amber-300 bg-amber-50";
+  return "text-slate-700 border-slate-200 bg-slate-50";
 }
 
 function formatRelative(iso: string | null): string {
@@ -30,20 +29,37 @@ function formatRelative(iso: string | null): string {
   return `${diffDays}d ago`;
 }
 
-export function UptimeMonitorCard({ snapshot, history, isFreeTier }: Props) {
+function tickTone(status: WebsiteUptimeHistoryItem["status"]): string {
+  if (status === "up") return "bg-blue-500 shadow-[0_0_18px_rgba(59,130,246,0.45)]";
+  if (status === "degraded") return "bg-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.45)]";
+  return "bg-rose-500 shadow-[0_0_18px_rgba(244,63,94,0.45)]";
+}
+
+export function UptimeMonitorCard({ snapshot, history }: Props) {
   const currentStatus = snapshot?.status ?? "unknown";
   const cadence = snapshot?.frequencyMinutes ?? 30;
-  const tbtn = "h-4 w-4 min-h-4 min-w-4 text-[8px] border-white/25 bg-white/5 text-white/90";
+  const orderedHistory = [...history].reverse();
+  const recentChecks = history.slice(0, 12);
+  const checksWithTiming = recentChecks.filter((row) => row.responseTimeMs != null);
+  const avgResponse =
+    checksWithTiming.length > 0
+      ? Math.round(
+          checksWithTiming.reduce((sum, row) => sum + (row.responseTimeMs ?? 0), 0) / checksWithTiming.length,
+        )
+      : null;
+  const upCount = recentChecks.filter((row) => row.status === "up").length;
+  const recentUptimePct = recentChecks.length > 0 ? Math.round((upCount / recentChecks.length) * 100) : null;
+  const tbtn = "h-4 w-4 min-h-4 min-w-4 text-[8px] border-slate-300 bg-slate-100 text-slate-700";
   return (
-    <section className="ui-surface p-1 sm:p-1.5">
-      <div className="relative overflow-hidden rounded-[calc(1rem-3px)] border border-white/[0.08] bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_20px_50px_-44px_rgba(0,0,0,0.85)] sm:p-6">
+    <section className="rounded-3xl border border-slate-200 bg-white p-1 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)] sm:p-1.5">
+      <div className="relative overflow-hidden rounded-[calc(1rem-3px)] bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 pr-1">
-          <p className="ui-section-title text-white/55">Uptime monitor</p>
-          <h3 className="mt-2 text-xl font-semibold tracking-tight text-white">Current status: {currentStatus}</h3>
-          <p className="mt-1 text-xs text-white/65">
-            Last checked {formatRelative(snapshot?.lastCheckedAt ?? null)} · every {cadence} minute
-            {cadence === 1 ? "" : "s"}
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">HTTP probe samples</p>
+          <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">Latest stored status: {currentStatus}</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Last checked {formatRelative(snapshot?.lastCheckedAt ?? null)} · configured cadence {cadence} minute
+            {cadence === 1 ? "" : "s"} when the runner is active
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -54,9 +70,59 @@ export function UptimeMonitorCard({ snapshot, history, isFreeTier }: Props) {
         </div>
       </div>
 
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-slate-500">Recent uptime</p>
+          <p className="mt-1 text-2xl font-bold text-slate-950">
+            {recentUptimePct != null ? `${recentUptimePct}%` : "n/a"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">Last {recentChecks.length || 0} stored checks</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-slate-500">Avg response</p>
+          <p className="mt-1 text-2xl font-bold text-slate-950">{avgResponse != null ? `${avgResponse}ms` : "n/a"}</p>
+          <p className="mt-1 text-xs text-slate-500">Stored timings only</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-slate-500">Cadence</p>
+          <p className="mt-1 text-2xl font-bold text-slate-950">{cadence}m</p>
+          <p className="mt-1 text-xs text-slate-500">When runner is active</p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Uptime ticks</p>
+          <p className="text-xs text-slate-500">Oldest → newest</p>
+        </div>
+        {orderedHistory.length > 0 ? (
+          <div className="mt-4 flex items-end gap-1.5 overflow-x-auto pb-1">
+            {orderedHistory.map((row) => (
+              <div key={row.id} className="group flex min-w-3 flex-col items-center gap-1">
+                <span
+                  className={`h-8 w-2.5 rounded-full ${tickTone(row.status)}`}
+                  title={`${row.status} · ${row.statusCode ?? "n/a"} · ${row.responseTimeMs ?? "no timing"}ms · ${formatRelative(row.checkedAt)}`}
+                />
+                <span className="sr-only">
+                  {row.status} check {formatRelative(row.checkedAt)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-xs text-slate-500">
+            No ticks yet. The runner may not be scheduled, or the site is brand new and still getting its shoes on.
+          </p>
+        )}
+        <p className="mt-3 text-xs text-slate-500">
+          Blue means up, amber means degraded, red means down/error. If this stays empty, the issue is probably the
+          runner schedule, not the chart.
+        </p>
+      </div>
+
       <div className="mt-4 space-y-2">
         {history.length > 0 ? (
-          <div className="mb-0.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-white/10 pb-1 text-[9px] font-semibold uppercase tracking-wide text-white/45 sm:text-[10px]">
+          <div className="mb-0.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-slate-200 pb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[10px]">
             <span>Check</span>
             <span>When</span>
             <span>HTTP</span>
@@ -67,7 +133,7 @@ export function UptimeMonitorCard({ snapshot, history, isFreeTier }: Props) {
           row ? (
             <div
               key={row.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/20 bg-black/20 px-3 py-2 text-xs text-white/75"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"
             >
               <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusTone(row.status)}`}>
                 {row.status}
@@ -79,20 +145,13 @@ export function UptimeMonitorCard({ snapshot, history, isFreeTier }: Props) {
           ) : (
             <div
               key={`empty-${idx}`}
-              className="rounded-2xl border border-white/20 bg-black/20 px-3 py-2 text-xs text-white/65"
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
             >
-              No checks yet. The scheduler will populate this once the first run completes.
+              No checks yet. The uptime runner hasn’t shown up to work.
             </div>
           ),
         )}
       </div>
-
-      {isFreeTier ? (
-        <p className="mt-4 text-xs text-white/58">
-          Free tier includes basic uptime status and recent checks. Upgrade to unlock richer historical monitoring
-          views.
-        </p>
-      ) : null}
       </div>
     </section>
   );

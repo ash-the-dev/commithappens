@@ -1,4 +1,4 @@
-import { getActiveUptimeChecks, insertUptimeLog } from "@/lib/db/uptime";
+import { ensureUptimeChecksForActiveWebsites, getActiveUptimeChecks, insertUptimeLog } from "@/lib/db/uptime";
 
 export const runtime = "nodejs";
 
@@ -71,6 +71,7 @@ async function run(request: Request): Promise<Response> {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
   try {
+    await ensureUptimeChecksForActiveWebsites();
     const checks = await getActiveUptimeChecks();
     const checkedAt = new Date();
 
@@ -93,7 +94,7 @@ async function run(request: Request): Promise<Response> {
         await insertUptimeLog({
           websiteId: check.website_id,
           uptimeCheckId: check.uptime_check_id,
-          userId: null,
+          userId: check.user_id,
           checkedAt,
           status: result.status,
           statusCode: result.statusCode,

@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
-import { getSitemapBaseUrl } from "@/lib/app-url";
+import { getPublicOrigin } from "@/lib/public-origin";
 
 export default function robots(): MetadataRoute.Robots {
-  const base = getSitemapBaseUrl();
+  const base = getPublicOrigin();
   return {
     rules: {
       userAgent: "*",

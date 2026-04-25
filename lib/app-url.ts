@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { getPublicOrigin } from "@/lib/public-origin";
 
 const PRODUCTION_ORIGIN = "https://www.commithappens.com";
 
@@ -43,18 +44,5 @@ export async function getRequestOrigin(): Promise<string> {
  * Does not use request headers (safe for build-time and `/sitemap.xml`).
  */
 export function getSitemapBaseUrl(): string {
-  const explicit = process.env.NEXTAUTH_URL?.trim();
-  if (explicit && !isLocalOrigin(explicit)) {
-    const value = explicit.replace(/\/$/, "");
-    return value === "https://commithappens.com" ? PRODUCTION_ORIGIN : value;
-  }
-  const vercel = process.env.VERCEL_URL?.trim();
-  if (vercel) {
-    const host = vercel.replace(/^https?:\/\//, "").replace(/\/$/, "");
-    if (host === "commithappens.com") {
-      return PRODUCTION_ORIGIN;
-    }
-    return `https://${host}`;
-  }
-  return PRODUCTION_ORIGIN;
+  return getPublicOrigin();
 }

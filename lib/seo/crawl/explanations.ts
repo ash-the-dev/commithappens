@@ -238,6 +238,108 @@ const METRIC_EXPLANATIONS: Record<string, HelpPanelContent> = {
     whyItMatters: "A spike or drop is the start of a question, not the answer.",
     improvementTip: "Check campaigns, site outages, and tracking mistakes before you assume it is a long-term trend.",
   },
+  trend_seo_health: {
+    term: "SEO health over time (line)",
+    definition:
+      "A simple line of stored crawl health scores, newest runs on the right. It is a rule-based 0–100, not a Google ranking score.",
+    whyItMatters: "A steady or climbing line usually means your last fixes are sticking. A sharp drop means something on the site (or the crawl) changed.",
+    improvementTip: "Re-run a crawl after major launches, then compare this line to the week before. Fix criticals first, then warnings.",
+  },
+  trend_seo_issues: {
+    term: "Issue count over time (crawl line)",
+    definition:
+      "The total notices, warnings, and critical flags we saw on each import. Think of it as “how many raised hands” from the crawl, not a moral judgment.",
+    whyItMatters: "A falling line (fewer open signals) is a quiet brag. A rising one means you shipped risk, a crawl widened, or a rule found more detail.",
+    improvementTip: "Tackle the top fixes in the report, re-import, and watch this bend downward.",
+  },
+  trend_uptime_probe: {
+    term: "Uptime checks over time",
+    definition:
+      "How our scheduled probes read each check: we plot a simple 100% when the check looked “up” and 0% when it was clearly not. (Degraded sits in the middle for visibility.)",
+    whyItMatters: "Downtime is a silent tax on ad spend, support, and trust — even a short blip can lose people who will never complain out loud.",
+    improvementTip: "If you see frequent dips, look at hosting, SSL renewals, DNS, and any deploys that line up in time.",
+  },
+  trend_response_probe: {
+    term: "Response time from monitors",
+    definition:
+      "Time until our probe got a first useful answer back from your server, shown over recent checks. Empty gaps can mean the monitor did not record timing yet.",
+    whyItMatters: "A creeping line can be an early nudge on hosting load, big images, or database pain — before you hear about it in reviews.",
+    improvementTip: "If response climbs but uptime stays 100%, profile slow templates and your host. This is a hint, not a full page-speed audit.",
+  },
+  onpage_titles: {
+    term: "Page titles in the crawl",
+    definition:
+      "The <title> text people see in browser tabs, bookmarks, and sometimes search. We count pages where a title was present vs missing in the latest import.",
+    whyItMatters: "A blank or repeated title is like sending someone to a door with no sign — it feels untrustworthy fast.",
+    improvementTip: "Write a unique title for each key page, plain language, what the page is for in ~50–60 characters of honesty.",
+  },
+  onpage_meta: {
+    term: "Meta descriptions",
+    definition:
+      "A short blurb in the page head that some search results may use under your title, when they choose to show it.",
+    whyItMatters: "A strong one helps humans decide to click, even if search engines do not show it every time.",
+    improvementTip: "One or two clear sentences, benefit-led, with no fake excitement or keyword walls.",
+  },
+  onpage_h1: {
+    term: "H1 headings",
+    definition:
+      "The main visible heading for the page. It should usually match the topic people expect from the link they clicked.",
+    whyItMatters: "A missing or vague H1 is a bounce risk — people decide in seconds if they are in the right place.",
+    improvementTip: "Add one clear H1 near the top. Match it to the job the page is supposed to do.",
+  },
+  onpage_internal_links: {
+    term: "Internal links in the crawl",
+    definition: "Out-links the crawler could see from your pages to other URLs, when we stored a link list in the import.",
+    whyItMatters: "Good internal links help people find the next thing to read, product to buy, or help article to open.",
+    improvementTip: "Add useful next steps. Avoid orphan pages: if something matters, at least one other page should point to it.",
+  },
+  onpage_indexability: {
+    term: "Indexability snapshot",
+    definition:
+      "A rough look at which crawled pages returned a normal 200-range response vs redirects/errors in this import. It is a plumbing view, not a full Google Search Console view.",
+    whyItMatters: "If the basics are off (lots of 404/500), the fanciest copy will not save you.",
+    improvementTip: "Fix server errors and accidental 404s first, then work metadata.",
+  },
+  onpage_broken_links: {
+    term: "Broken or error pages in this crawl",
+    definition:
+      "Pages that looked like a client or server error to our rules, like a 404 or 5xx, based on the crawl’s HTTP view.",
+    whyItMatters: "If customers hit these, you pay twice: the lost visit and the quiet doubt that your site is maintained.",
+    improvementTip: "Point links to a real destination, or restore the page. Use one clean redirect, not a chain of maybes.",
+  },
+  onpage_missing_duplicate: {
+    term: "Missing or thin content signals",
+    definition:
+      "A bundle of on-page issues where titles, H1, or meta were missing, or a future duplicate rule fired in the crawl. Some advanced duplicate detection may show “not flagged yet” until configured.",
+    whyItMatters: "Empty basics make every channel work harder, from ads to search to word-of-mouth.",
+    improvementTip: "Start with the pages that earn you money, leads, or support deflection, then work outward.",
+  },
+  seo_top_pages_bars: {
+    term: "Top pages (bar chart)",
+    definition:
+      "The paths that got the most verified pageviews in the last 14 days of tracker data, after we filter out obvious search bots by user agent.",
+    whyItMatters: "These are the doors people are actually using — if the top few are clunky, you are leaving revenue in the hall.",
+    improvementTip: "Open the top 3 on your phone and be picky about the first screen: speed, message match, and one obvious next action.",
+  },
+  seo_response_health_score: {
+    term: "Health score in this report",
+    definition: "A composite 0–100 from how many pages fell into healthy, redirect, error, and “other” buckets in your status-code import.",
+    whyItMatters: "A higher score means fewer scary outcomes in the raw crawl, not a promise of rankings or fame.",
+    improvementTip: "Chase 404/5xx first, then messy redirects, then the smaller polish work.",
+  },
+  seo_response_issues: {
+    term: "Issues found in this report",
+    definition:
+      "Count of structured issue rows in the import — pages where status codes, redirects, or server behavior looked off under our rules.",
+    whyItMatters: "It is a quick pressure gauge, not a complete legal audit of every line of HTML.",
+    improvementTip: "Start with the items marked high priority in the list below, then re-run a crawl to confirm the delta.",
+  },
+  issue_movement: {
+    term: "New vs resolved issues",
+    definition: "A simple ledger of issues that first appeared in this run versus issues that no longer show up, compared to the run before.",
+    whyItMatters: "A healthy site usually trends toward more resolutions than new surprises over time (even if the absolute count is not zero).",
+    improvementTip: "If the “new” side keeps winning, make time for a focused fix pass before piling on new marketing spend.",
+  },
 };
 
 export type CrawlPageHint = {

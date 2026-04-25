@@ -16,6 +16,12 @@ import { buildResponseCodeVoice } from "@/lib/seo-voice/responseCodeVoice";
 import type { ResponseCodeComparison } from "@/lib/seo/report/comparison";
 import { getSeoPlaybookResponse, type SeoPlaybookIssueKey } from "@/lib/seo/playbook/responses";
 import { runSeoResponseCodesImportFromDashboard } from "@/lib/seo/response-codes/seo-response-codes-run-client";
+import { SeoOnPageReportSection } from "@/components/dashboard/SeoOnPageReportSection";
+import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
+import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
+import type { SeoCrawlOnPageBreakdown } from "@/lib/db/seo-crawl-intelligence";
+
+const metricInfoBtn = "h-3.5 w-3.5 min-h-3.5 min-w-3.5 border-slate-400/60 bg-slate-200/80 text-slate-800";
 
 type ResponseCodeReportLike = {
   raw: {
@@ -63,9 +69,14 @@ type ResponseCodeEnvelope = {
 
 type Props = {
   siteId?: string;
+  /**
+   * Latest crawl on-page rollups; safe to pass null.
+   * When null, the on-page section explains what is missing without touching response-code data.
+   */
+  onPageBreakdown?: SeoCrawlOnPageBreakdown | null;
 };
 
-const PIE_COLORS = ["#34d399", "#f59e0b", "#fb7185", "#ef4444", "#a78bfa"];
+const PIE_COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#94a3b8"];
 const RUNNING_LINES = [
   "Let the chaos begin...",
   "Crunching numbers and a few feelings...",
@@ -204,12 +215,17 @@ type MetricCardProps = {
   delta: number;
   trend: "better" | "worse" | "stable" | "n/a";
   help: string;
+  infoKey?: string;
 };
 
-function MetricCard({ label, value, previous, delta, trend, help }: MetricCardProps) {
+function MetricCard({ label, value, previous, delta, trend, help, infoKey }: MetricCardProps) {
+  const expl = infoKey ? getMetricExplanation(infoKey) : null;
   return (
     <article className="rounded-2xl border border-white/45 bg-white/90 p-4 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.65)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <div className="flex items-start justify-between gap-1">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+        {expl ? <InfoTooltip buttonClassName={metricInfoBtn} {...expl} /> : null}
+      </div>
       <p className="mt-2 text-3xl font-bold text-slate-900">{value}</p>
       <p className="mt-1 text-xs text-slate-500">Previous: {previous}</p>
       <div className="mt-3 flex items-center gap-2">
@@ -267,10 +283,9 @@ function issueGuides(current: ResponseCodeReportLike) {
   });
 }
 
-export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
+export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown = null }: Props) {
   const [envelope, setEnvelope] = useState<ResponseCodeEnvelope | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshingStats, setIsRefreshingStats] = useState(false);
   const [hasFetchError, setHasFetchError] = useState(false);
   const [isRunningCrawl, setIsRunningCrawl] = useState(false);
   const [crawlStartedAt, setCrawlStartedAt] = useState<number | null>(null);
@@ -308,8 +323,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
         setRunErrorMessage(result.error);
         return;
       }
-      await fetchReport();
-      setRunStatusMessage(result.message || "Crawl finished and report refreshed.");
+      setRunStatusMessage(result.message || "Crawl started. Results will update shortly.");
     } catch (err) {
       setRunErrorMessage(err instanceof Error ? err.message : "Failed to run crawl.");
     } finally {
@@ -318,15 +332,6 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
       setCrawlElapsedSec(0);
     }
   }, [fetchReport, siteId]);
-
-  const refreshStats = useCallback(async () => {
-    setIsRefreshingStats(true);
-    try {
-      await fetchReport();
-    } finally {
-      setIsRefreshingStats(false);
-    }
-  }, [fetchReport]);
 
   useEffect(() => {
     let cancelled = false;
@@ -351,7 +356,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
     if (!isRunningCrawl) return;
     const rotation = setInterval(() => {
       setRunningLineIdx((prev) => (prev + 1) % RUNNING_LINES.length);
-    }, 3200);
+    }, 2000);
     return () => clearInterval(rotation);
   }, [isRunningCrawl]);
 
@@ -415,15 +420,15 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
   const fakeProgress = Math.min(92, 14 + crawlElapsedSec * 1.25);
 
   return (
-    <section id="seo-console" className="ui-dash-shell p-5 sm:p-7">
+    <section id="seo-console" className="space-y-5">
       {isRunningCrawl ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-cyan-200/30 bg-linear-to-br from-slate-900/95 via-slate-900/92 to-indigo-950/90 p-5 shadow-2xl">
             <p className="text-xs font-semibold uppercase tracking-widest text-cyan-200">Crawl in progress</p>
-            <h4 className="mt-2 text-lg font-semibold text-white">Crawling your site and importing the report</h4>
+              <h4 className="mt-2 text-lg font-semibold text-white">Starting the background crawl</h4>
             <p className="mt-2 text-base font-semibold text-cyan-100">{RUNNING_LINES[runningLineIdx]}</p>
             <p className="mt-2 text-sm text-slate-200">
-              This can take around 1-3 minutes. Keep this tab open; we will refresh data automatically when it completes.
+              The crawl runs in the background now. Refresh stats in a bit and the webhook will bring the goods.
             </p>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-300">
               <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 font-semibold uppercase tracking-widest">
@@ -441,57 +446,53 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
               <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-cyan-300" />
               <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-indigo-300 [animation-delay:150ms]" />
               <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-fuchsia-300 [animation-delay:300ms]" />
-              <span>No silent failures. We’ll post the result here.</span>
+              <span>No local crawler nonsense. This starts the Apify worker.</span>
             </div>
           </div>
         </div>
       ) : null}
       <div className="space-y-6">
-        <header className="rounded-3xl border border-white/25 bg-linear-to-br from-slate-900/88 via-slate-900/80 to-indigo-950/70 p-6 shadow-[0_35px_95px_-55px_rgba(15,23,42,0.95)] backdrop-blur-xl sm:p-8">
+        <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.45)] sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300/90">SEO Monitoring Console</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-white">{comparison.overview.headline}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-200/90">
-                {hasData ? comparison.overview.summary : "No crawl data yet. Fire a crawl and we will light this up."}
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">SEO crawl details</p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">{comparison.overview.headline}</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
+                {hasData ? comparison.overview.summary : "No crawl data yet. Run or import a crawl to populate this report."}
               </p>
               {!hasData ? (
-                <p className="mt-2 text-xs text-amber-200/90">
+                <p className="mt-2 text-xs text-amber-700">
                   If a crawl just succeeded but this is still empty, verify that your run used the same site ID this page is querying.
                 </p>
               ) : null}
               {comparison.hasPrevious ? (
-                <p className="mt-2 text-xs text-slate-300/80">
+                <p className="mt-2 text-xs text-slate-500">
                   Comparing latest crawl against the immediately previous crawl for this site.
                 </p>
               ) : (
-                <p className="mt-2 text-xs text-cyan-200/90">
+                <p className="mt-2 text-xs text-cyan-700">
                   First crawl baseline captured. Comparison unlocks after your next run.
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void refreshStats()}
-                disabled={isRefreshingStats}
-                className="rounded-xl border border-cyan-200/70 bg-cyan-300/25 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-50 transition hover:bg-cyan-300/35 disabled:opacity-60"
-              >
-                {isRefreshingStats ? "Refreshing..." : "Refresh Report"}
-              </button>
+            <div className="flex flex-col items-end gap-2">
+              <p className="max-w-xs text-right text-xs leading-relaxed text-slate-500">
+                Use the page header action for the main run/refresh flow. This tab has a secondary crawl trigger for
+                the detailed response-code report.
+              </p>
               <button
                 type="button"
                 onClick={() => void runCrawl()}
                 disabled={isRunningCrawl}
-                className="rounded-xl border border-cyan-200/60 bg-cyan-300/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-50 transition hover:bg-cyan-300/30 disabled:opacity-60"
+                className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
               >
                 {isRunningCrawl ? "Running..." : "Run crawl"}
               </button>
             </div>
           </div>
-          {runStatusMessage ? <p className="mt-4 text-xs text-emerald-200">{runStatusMessage}</p> : null}
-          {runErrorMessage ? <p className="mt-4 text-xs text-rose-200">{runErrorMessage}</p> : null}
-          {hasFetchError ? <p className="mt-4 text-xs text-amber-200">Could not load latest report. Showing fallback.</p> : null}
+          {runStatusMessage ? <p className="mt-4 text-xs text-blue-700">{runStatusMessage}</p> : null}
+          {runErrorMessage ? <p className="mt-4 text-xs text-amber-700">{runErrorMessage}</p> : null}
+          {hasFetchError ? <p className="mt-4 text-xs text-amber-700">Could not load latest report. Showing fallback.</p> : null}
         </header>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -502,6 +503,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
             delta={comparison.deltas.totalPages.delta}
             trend={comparison.deltas.totalPages.trend}
             help="How many URLs were evaluated in this run."
+            infoKey="pages_crawled"
           />
           <MetricCard
             label="Issues found"
@@ -510,6 +512,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
             delta={comparison.deltas.issuesFound.delta}
             trend={comparison.deltas.issuesFound.trend}
             help="Lower is better. This tracks pages outside the healthy path."
+            infoKey="seo_response_issues"
           />
           <MetricCard
             label="Health score"
@@ -518,8 +521,12 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
             delta={comparison.deltas.healthScore.delta}
             trend={comparison.deltas.healthScore.trend}
             help="Composite quality signal from response distribution."
+            infoKey="seo_response_health_score"
           />
-          <article className="rounded-2xl border border-white/45 bg-white/90 p-4 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.65)]">
+          <article className="relative rounded-2xl border border-white/45 bg-white/90 p-4 pl-10 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.65)] sm:pl-4">
+            <div className="absolute right-3 top-3 sm:right-3 sm:top-3.5">
+              <InfoTooltip buttonClassName={metricInfoBtn} {...getMetricExplanation("issue_movement")} />
+            </div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Issue movement</p>
             <p className="mt-2 text-2xl font-bold text-slate-900">
               +{comparison.deltas.newIssues} / -{comparison.deltas.resolvedIssues}
@@ -527,7 +534,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
             <p className="mt-1 text-xs text-slate-500">New issues vs resolved issues since the previous crawl.</p>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
               <div
-                className="h-full bg-linear-to-r from-emerald-400 to-cyan-500"
+                className="h-full bg-linear-to-r from-blue-500 via-violet-500 to-cyan-500"
                 style={{ width: `${Math.max(0, Math.min(100, current.insights.overview.healthScore))}%` }}
               />
             </div>
@@ -535,8 +542,17 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
           </article>
         </section>
 
+        <SeoOnPageReportSection
+          breakdown={onPageBreakdown}
+          priorityRecommendations={current.insights.recommendations as Array<{
+            type: string;
+            message?: string;
+            priority: "high" | "medium" | "low";
+          }>}
+        />
+
         <section className="grid gap-5 xl:grid-cols-2">
-          <article className="rounded-3xl border border-white/30 bg-white/92 p-5 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.7)] backdrop-blur">
+          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)]">
             <h3 className="text-base font-semibold text-slate-900">Status code distribution (current)</h3>
             <p className="mt-1 text-xs text-slate-600">Where pages land right now: healthy, redirecting, or breaking.</p>
             <div className="mt-4 h-60">
@@ -553,14 +569,14 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
             </div>
           </article>
 
-          <article className="rounded-3xl border border-white/25 bg-linear-to-br from-slate-900/85 via-slate-900/78 to-slate-950/88 p-5 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)]">
-            <h3 className="text-base font-semibold text-white">Status code trend (previous vs current)</h3>
-            <p className="mt-1 text-xs text-slate-300">Exact bucket movement between the last two crawls.</p>
+          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)]">
+            <h3 className="text-base font-semibold text-slate-900">Status code trend (previous vs current)</h3>
+            <p className="mt-1 text-xs text-slate-600">Exact bucket movement between the last two crawls.</p>
             <div className="mt-4 h-60">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
                 <BarChart data={trendData}>
-                  <XAxis dataKey="bucket" stroke="#cbd5e1" fontSize={12} />
-                  <YAxis stroke="#cbd5e1" fontSize={12} />
+                  <XAxis dataKey="bucket" stroke="#64748b" fontSize={12} />
+                  <YAxis stroke="#64748b" fontSize={12} />
                   <Tooltip />
                   <Bar dataKey="previous" fill="#94a3b8" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="current" fill="#22d3ee" radius={[4, 4, 0, 0]} />
@@ -571,7 +587,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
         </section>
 
         <section className="grid gap-5 xl:grid-cols-2">
-          <article className="rounded-3xl border border-white/30 bg-white/92 p-5 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.7)]">
+          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)]">
             <h3 className="text-base font-semibold text-slate-900">Issue breakdown</h3>
             <p className="mt-1 text-xs text-slate-600">Count by issue family so you can prioritize effort fast.</p>
             <div className="mt-4 h-64">
@@ -586,21 +602,21 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
             </div>
           </article>
 
-          <article className="rounded-3xl border border-white/25 bg-linear-to-br from-slate-900/85 via-indigo-950/75 to-slate-950/88 p-5 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.85)]">
-            <h3 className="text-base font-semibold text-white">Regression vs improvement</h3>
-            <p className="mt-1 text-xs text-slate-300">What changed quality-wise since your previous crawl.</p>
+          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)]">
+            <h3 className="text-base font-semibold text-slate-900">Regression vs improvement</h3>
+            <p className="mt-1 text-xs text-slate-600">What changed quality-wise since your previous crawl.</p>
             <div className="mt-4 h-64">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
                 <BarChart data={changeSplit}>
-                  <XAxis dataKey="name" stroke="#cbd5e1" fontSize={11} />
-                  <YAxis stroke="#cbd5e1" fontSize={12} />
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
+                  <YAxis stroke="#64748b" fontSize={12} />
                   <Tooltip />
                   <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                     {changeSplit.map((entry) => (
                       <Cell
                         key={entry.name}
                         fill={
-                          entry.name === "Got worse" ? "#fb7185" : entry.name === "Got better" ? "#34d399" : "#94a3b8"
+                          entry.name === "Got worse" ? "#f59e0b" : entry.name === "Got better" ? "#3b82f6" : "#8b5cf6"
                         }
                       />
                     ))}
@@ -611,7 +627,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
           </article>
         </section>
 
-        <section className="rounded-3xl border border-white/25 bg-white/92 p-5 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.7)] sm:p-6">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)] sm:p-6">
           <h3 className="text-lg font-semibold text-slate-900">What changed since last crawl</h3>
           <p className="mt-1 text-sm text-slate-600">
             Regressions are things that got worse. Improvements are things that moved in the right direction.
@@ -627,9 +643,9 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
             </div>
           ) : (
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">Regressions</p>
-                <ul className="mt-3 space-y-2 text-sm text-rose-900">
+              <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">⚠ Regressions</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-700">
                   {comparison.regressions.length > 0 ? (
                     comparison.regressions.map((item) => <li key={item.id}>{item.summary}</li>)
                   ) : (
@@ -637,9 +653,9 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
                   )}
                 </ul>
               </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Improvements</p>
-                <ul className="mt-3 space-y-2 text-sm text-emerald-900">
+              <div className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">↗ Improvements</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-700">
                   {comparison.improvements.length > 0 ? (
                     comparison.improvements.map((item) => <li key={item.id}>{item.summary}</li>)
                   ) : (
@@ -661,23 +677,23 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
           )}
         </section>
 
-        <section className="rounded-3xl border border-white/25 bg-linear-to-br from-slate-900/87 via-slate-900/84 to-indigo-950/76 p-5 shadow-[0_24px_60px_-35px_rgba(15,23,42,0.9)] sm:p-6">
-          <h3 className="text-lg font-semibold text-white">Issue guide (what it means + how to fix)</h3>
-          <p className="mt-1 text-sm text-slate-300">Short version: what broke, why it matters, and what “good” looks like.</p>
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)] sm:p-6">
+          <h3 className="text-lg font-semibold text-slate-950">Issue guide (what it means + how to fix)</h3>
+          <p className="mt-1 text-sm text-slate-600">Short version: what broke, why it matters, and what “good” looks like.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {guides.map((guide) => (
-              <details key={guide.key} className="group rounded-2xl border border-white/20 bg-white/10 p-4 text-slate-100 open:bg-white/15">
-                <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm font-semibold">
+              <article key={guide.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
+                <div className="flex items-center justify-between gap-3 text-sm font-semibold">
                   <span>{guide.label}</span>
-                  <span className="rounded-full border border-white/30 bg-white/15 px-2 py-0.5 text-xs">{guide.count}</span>
-                </summary>
-                <div className="mt-3 space-y-2 text-xs leading-relaxed text-slate-200">
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-300">
+                  <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-xs text-blue-700">{guide.count}</span>
+                </div>
+                <div className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-700">
                     {guide.playfulMessage}
                   </p>
-                  <p><span className="font-semibold text-white">Why it matters:</span> {guide.why}</p>
+                  <p><span className="font-semibold text-slate-950">Why it matters:</span> {guide.why}</p>
                   <div>
-                    <p><span className="font-semibold text-white">How to fix:</span></p>
+                    <p><span className="font-semibold text-slate-950">How to fix:</span></p>
                     <ol className="mt-1 list-decimal space-y-1 pl-4">
                       {guide.fixSteps.map((step) => (
                         <li key={step}>{step}</li>
@@ -685,7 +701,7 @@ export function ResponseCodeDashboardCard({ siteId = "default" }: Props) {
                     </ol>
                   </div>
                 </div>
-              </details>
+              </article>
             ))}
           </div>
         </section>

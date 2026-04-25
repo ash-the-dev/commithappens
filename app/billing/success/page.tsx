@@ -5,7 +5,7 @@ export default function BillingSuccessPage() {
     <main className="mx-auto max-w-2xl space-y-4 px-6 py-16 text-center">
       <h1 className="text-3xl font-semibold text-white">Trial started</h1>
       <p className="text-sm text-white/70">
-        Your 7-day trial is active. We’ll sync billing access automatically from Stripe events.
+        Your 3-day trial is active. We’ll sync billing access automatically from Stripe events.
       </p>
       <div className="flex justify-center gap-2">
         <Link

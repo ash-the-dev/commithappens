@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   Legend,
   Line,
   LineChart,
@@ -70,72 +71,6 @@ function classifyMove(pct: number): SeriesInsight["kind"] {
   if (pct >= 35) return "spike";
   if (pct <= -25) return "drop";
   return "flat";
-}
-
-function biggestMove(timeline: SiteAnalyticsPoint[], key: MetricKey): SeriesInsight | null {
-  if (timeline.length < 2) return null;
-
-  let best: SeriesInsight | null = null;
-  for (let i = 1; i < timeline.length; i += 1) {
-    const prev = timeline[i - 1]![key];
-    const next = timeline[i]![key];
-    const pct = pctChange(prev, next);
-    const kind = classifyMove(pct);
-    if (kind === "flat") continue;
-
-    const cand: SeriesInsight = {
-      metric: key,
-      label:
-        key === "sessions"
-          ? "Sessions"
-          : key === "pageviews"
-            ? "Pageviews"
-            : "Events",
-      day: timeline[i]!.day,
-      dayLabel: timeline[i]!.label,
-      value: next,
-      prev,
-      pct,
-      kind,
-    };
-
-    if (!best) {
-      best = cand;
-      continue;
-    }
-
-    const score = Math.abs(pct);
-    const bestScore = Math.abs(best.pct);
-    if (score > bestScore) best = cand;
-  }
-
-  return best;
-}
-
-function pickHeadlineInsight(timeline: SiteAnalyticsPoint[]): SeriesInsight | null {
-  if (timeline.length < 2) return null;
-  const last = timeline[timeline.length - 1]!;
-  const prev = timeline[timeline.length - 2]!;
-  const candidates: SeriesInsight[] = (["sessions", "pageviews", "events"] as MetricKey[]).map(
-    (key) => {
-      const prevValue = prev[key];
-      const nextValue = last[key];
-      const pct = pctChange(prevValue, nextValue);
-      return {
-        metric: key,
-        label: key === "sessions" ? "Sessions" : key === "pageviews" ? "Pageviews" : "Events",
-        day: last.day,
-        dayLabel: last.label,
-        value: nextValue,
-        prev: prevValue,
-        pct,
-        kind: classifyMove(pct),
-      };
-    },
-  );
-
-  candidates.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
-  return candidates[0] ?? null;
 }
 
 function latestDayDelta(timeline: SiteAnalyticsPoint[]): LatestDelta | null {
@@ -349,7 +284,6 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
     pageviews: 0,
     events: 0,
   };
-  const headline = pickHeadlineInsight(timeline);
   const latestDeltaInsight = latestDayDelta(timeline);
 
   const sessionsSeries = timeline.map((d) => d.sessions);
@@ -362,6 +296,21 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
   const totalPageviewsInRange = timeline.reduce((sum, d) => sum + d.pageviews, 0);
   const topShare =
     top && totalPageviewsInRange > 0 ? (top.views / totalPageviewsInRange) * 100 : null;
+
+  const topPagesForChart = useMemo(() => {
+    return [...analytics.topPages]
+      .sort((a, b) => b.views - a.views)
+      .map((p, i) => {
+        const full = p.path || "/";
+        const short = full.length > 28 ? `${full.slice(0, 12)}…${full.slice(-10)}` : full;
+        return {
+          path: full,
+          short,
+          label: `Page ${i + 1}`,
+          views: p.views,
+        };
+      });
+  }, [analytics.topPages]);
 
   const uptime = uptimePill(analytics);
 
@@ -624,11 +573,11 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
           </ResponsiveContainer>
         </div>
 
-        <details className="ui-dash-details mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
-          <summary className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-            For nerds (definitions)
-          </summary>
-          <div className="mt-3 space-y-2 text-xs text-slate-700">
+        <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+            Definitions
+          </p>
+          <div className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-3">
             <p>
               <span className="font-semibold">Sessions</span> = a bucket of activity that belongs to one visit
               story (best-effort in the real world).
@@ -641,14 +590,21 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
               checkout steps).
             </p>
           </div>
-        </details>
+        </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="ui-dash-card p-5 sm:p-6">
-          <p className="ui-dash-kicker">Demand map</p>
-          <h3 className="ui-dash-title">Top pages (last 14 days)</h3>
-          <p className="ui-dash-subtitle">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 pr-1">
+              <p className="ui-dash-kicker">Demand map</p>
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <h3 className="ui-dash-title mt-0! text-base! sm:text-lg!">Top pages (last 14 days)</h3>
+                <InfoTooltip buttonClassName={kpiInfoBtn} {...getMetricExplanation("seo_top_pages_bars")} />
+              </div>
+            </div>
+          </div>
+          <p className="ui-dash-subtitle mt-1!">
             Where attention pooled — protect these URLs like they pay rent (because they do).
           </p>
 
@@ -684,36 +640,67 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
             </p>
           </div>
 
-          <div className="mt-4 h-72 w-full rounded-2xl border border-slate-200/80 bg-white/70 p-3">
+          <div className="mt-4 h-80 w-full rounded-2xl border border-slate-200/60 bg-linear-to-b from-white/85 to-white/65 p-4 shadow-inner sm:h-88">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={analytics.topPages}
-                layout="vertical"
-                margin={{ top: 0, right: 18, left: 8, bottom: 0 }}
+                data={topPagesForChart}
+                margin={{ top: 8, right: 8, left: 4, bottom: 88 }}
+                barCategoryGap="18%"
               >
-                <CartesianGrid stroke="rgba(15,23,42,0.08)" strokeDasharray="3 3" />
+                <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} strokeDasharray="3 3" />
                 <XAxis
-                  type="number"
-                  tick={{ fill: "rgba(15,23,42,0.62)", fontSize: 12 }}
+                  dataKey="short"
+                  type="category"
+                  tick={{ fill: "rgba(15,23,42,0.68)", fontSize: 10 }}
                   tickLine={false}
-                  axisLine={{ stroke: "rgba(15,23,42,0.18)" }}
+                  axisLine={{ stroke: "rgba(15,23,42,0.1)" }}
+                  interval={0}
+                  height={64}
+                  angle={-32}
+                  textAnchor="end"
                 />
                 <YAxis
-                  dataKey="path"
-                  type="category"
-                  width={132}
-                  tick={{ fill: "rgba(15,23,42,0.72)", fontSize: 12 }}
+                  tick={{ fill: "rgba(15,23,42,0.55)", fontSize: 11 }}
                   tickLine={false}
                   axisLine={false}
+                  allowDecimals={false}
                 />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: "1px solid rgba(15,23,42,0.12)",
-                    background: "rgba(255,255,255,0.96)",
+                  cursor={{ fill: "rgba(56, 189, 248, 0.07)" }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.[0]) return null;
+                    const row = payload[0].payload as (typeof topPagesForChart)[0];
+                    return (
+                      <div className="max-w-sm rounded-xl border border-slate-200/80 bg-white/98 px-3 py-2 text-xs shadow-lg backdrop-blur">
+                        <p className="font-mono text-[11px] font-semibold leading-snug text-slate-800">{row.path}</p>
+                        <p className="mt-1 text-slate-600">
+                          <span className="font-semibold text-slate-900">{num(row.views)}</span> pageviews
+                        </p>
+                      </div>
+                    );
                   }}
                 />
-                <Bar dataKey="views" name="Views" fill="var(--brand)" radius={[7, 7, 7, 7]} />
+                <Bar
+                  dataKey="views"
+                  name="Pageviews"
+                  fill="url(#barGrad)"
+                  fillOpacity={0.92}
+                  radius={[10, 10, 0, 0]}
+                  maxBarSize={44}
+                >
+                  <LabelList
+                    dataKey="views"
+                    position="top"
+                    style={{ fontSize: 10, fill: "rgba(15,23,42,0.65)", fontWeight: 600 }}
+                    formatter={(v) => num(Number(v))}
+                  />
+                </Bar>
+                <defs>
+                  <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="color-mix(in srgb, var(--brand) 86%, white)" />
+                    <stop offset="100%" stopColor="color-mix(in srgb, var(--brand) 35%, #e2e8f0)" />
+                  </linearGradient>
+                </defs>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -772,10 +759,10 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
                       the slow pages and fix the biggest template issues first.
                     </p>
 
-                    <details className="ui-dash-details mt-3 rounded-xl border border-slate-200/80 bg-white/70 p-3">
-                      <summary className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-                        For nerds (thresholds + raw average)
-                      </summary>
+                    <div className="mt-3 rounded-xl border border-slate-200/80 bg-white/70 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+                        Thresholds + raw average
+                      </p>
                       <div className="mt-3 space-y-2 text-xs text-slate-700">
                         <p>
                           <span className="font-semibold">Rule-of-thumb bands:</span> {expl.good} · {expl.mid} ·{" "}
@@ -789,7 +776,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
                           “good” feels like.
                         </p>
                       </div>
-                    </details>
+                    </div>
                   </div>
                 );
               })}

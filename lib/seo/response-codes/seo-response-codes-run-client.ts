@@ -1,6 +1,5 @@
 /**
- * Shared client logic for POST /api/internal/seo/response-codes/run
- * (dashboard crawl + import). Used by the SEO console and the crawl snapshot section.
+ * Shared client logic for starting the Apify SEO crawl from dashboard surfaces.
  */
 
 export type SeoResponseCodesRunPayload = {
@@ -33,13 +32,13 @@ export function userFacingSeoCrawlRunError(
   if (res.status === 501) {
     return fromApi && !looksLikeServerTechnicalNoise(fromApi)
       ? fromApi
-      : "Starting a full crawl from the browser isn’t available in the hosted app yet. This report still shows your last imported data.";
+      : "SEO crawl worker not connected yet. Stored reports can refresh, but new crawls need the worker enabled.";
   }
   if (fromApi && !looksLikeServerTechnicalNoise(fromApi)) {
     return fromApi;
   }
   if (fromApi) {
-    return "We couldn’t run the crawl. Try again later, or import results from your project checkout (npm run seo:run).";
+    return "We couldn’t start the crawl. Try again later, or check the worker connection.";
   }
   if (looksLikeServerTechnicalNoise(rawBody)) {
     return "We couldn’t run the crawl. Try again later.";
@@ -52,14 +51,13 @@ export type SeoDashboardCrawlRunResult =
   | { ok: false; error: string };
 
 /**
- * Triggers the same server import as the SEO console "Run crawl" (npm run seo:run on the host).
- * Caller should call `router.refresh()` on success to reload RSC data (crawl run, top fixes, etc.).
+ * Starts the background Apify crawl. Results arrive later through the webhook.
  */
 export async function runSeoResponseCodesImportFromDashboard(siteId: string): Promise<SeoDashboardCrawlRunResult> {
-  const res = await fetch("/api/internal/seo/response-codes/run", {
+  const res = await fetch("/api/seo/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ site_id: siteId }),
+    body: JSON.stringify({ siteId }),
   });
   const rawBody = await res.text();
   const payload: SeoResponseCodesRunPayload | null = (() => {
@@ -77,6 +75,8 @@ export async function runSeoResponseCodesImportFromDashboard(siteId: string): Pr
   }
   return {
     ok: true,
-    message: (typeof payload?.message === "string" && payload.message.trim()) || "Report refreshed",
+    message:
+      (typeof payload?.message === "string" && payload.message.trim()) ||
+      "Crawl started. Results will update shortly.",
   };
 }

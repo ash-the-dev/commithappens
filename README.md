@@ -41,11 +41,11 @@ Notes:
 
 The SEO pipeline is now Apify-centered:
 
-1. Run `npm run seo:run` to start the configured Apify actor.
-2. The script polls until the run completes and reads `defaultDatasetId`.
-3. It imports dataset rows into `seo_crawl_runs` and `seo_crawl_pages`.
-4. It builds and inserts the final `report_json` into `response_code_reports`.
-5. The app reads the latest report via `/api/seo/response-codes`.
+1. The dashboard posts to `/api/seo/run`.
+2. The app creates a pending `seo_crawl_runs` row and starts the configured Apify actor.
+3. Apify calls `/api/seo/webhook` when the run finishes.
+4. The webhook imports, normalizes, and enriches dataset rows into `seo_crawl_pages`, `seo_page_reports`, `seo_issues`, `seo_site_summaries`, and `response_code_reports`.
+5. The dashboard refreshes stored reports from Supabase.
 
 Manual fallback:
 
@@ -54,8 +54,10 @@ Manual fallback:
 ### Required environment variables
 
 ```bash
-APIFY_TOKEN=...
+APIFY_API_TOKEN=...
 APIFY_ACTOR_ID=...
+APIFY_WEBHOOK_SECRET=...
+SEO_CRAWL_WEBHOOK_URL=https://commithappens.com/api/seo/webhook
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 SEO_SITE_ID=...
@@ -72,7 +74,7 @@ APIFY_ACTOR_RUN_ID=...    # manual import mode
 
 ## Billing (Stripe subscriptions)
 
-The app supports two paid plans with a 7-day free trial:
+The app supports paid plans with a 3-day free trial:
 
 - `situationship` -> monitoring + analysis, no SEO toolkit
 - `committed` -> SEO + monitoring + analysis, up to 3 sites
@@ -89,7 +91,7 @@ STRIPE_PRICE_ID_COMMITTED_MONTHLY=price_...
 
 Routes:
 
-- `POST /api/billing/checkout` -> create Stripe Checkout session (`subscription`, 7-day trial)
+- `POST /api/billing/checkout` -> create Stripe Checkout session (`subscription`, 3-day trial)
 - `POST /api/billing/portal` -> Stripe Customer Portal session
 - `POST /api/billing/webhook` -> Stripe event handler for subscription state sync
 

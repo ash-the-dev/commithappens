@@ -28,6 +28,7 @@ async function hasPublicColumn(
 export type ActiveUptimeCheck = {
   uptime_check_id: string;
   website_id: string;
+  user_id: string | null;
   url: string;
 };
 
@@ -42,14 +43,143 @@ export type InsertUptimeLogInput = {
   errorMessage: string | null;
 };
 
-const FREE_TIER_MIN_PROBE_GAP_MIN = 15;
+const FREE_TIER_MIN_PROBE_GAP_MIN = 30;
+
+export async function ensureUptimeChecksForActiveWebsites(): Promise<void> {
+  const pool = getPool();
+  const hasFrequencyMinutes = await hasPublicColumn("uptime_checks", "frequency_minutes");
+  const hasEnabled = await hasPublicColumn("uptime_checks", "enabled");
+  const hasUserId = await hasPublicColumn("uptime_checks", "user_id");
+  const hasNextCheckAt = await hasPublicColumn("uptime_checks", "next_check_at");
+
+  if (hasFrequencyMinutes && hasEnabled && hasUserId && hasNextCheckAt) {
+    await pool.query(
+      `INSERT INTO uptime_checks (
+        website_id,
+        user_id,
+        enabled,
+        frequency_minutes,
+        next_check_at,
+        updated_at
+      )
+      SELECT
+        w.id,
+        w.owner_user_id,
+        true,
+        CASE
+          WHEN lower(u.email) = 'ashthedev0@gmail.com' THEN 5
+          WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key = 'unlimited' THEN 5
+          WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key = 'committed' THEN 5
+          WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key = 'situationship' THEN 15
+          ELSE $1::int
+        END,
+        now(),
+        now()
+      FROM websites w
+      JOIN users u ON u.id = w.owner_user_id
+      LEFT JOIN user_subscriptions us ON us.user_id = w.owner_user_id
+      LEFT JOIN uptime_checks uc ON uc.website_id = w.id
+      WHERE w.deleted_at IS NULL
+        AND w.is_active = true
+        AND uc.id IS NULL
+      ON CONFLICT (website_id) DO NOTHING`,
+      [FREE_TIER_MIN_PROBE_GAP_MIN],
+    );
+    await pool.query(
+      `UPDATE uptime_checks uc
+       SET frequency_minutes = CASE
+             WHEN lower(u.email) = 'ashthedev0@gmail.com' THEN 5
+             WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key IN ('unlimited', 'committed') THEN 5
+             WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key = 'situationship' THEN 15
+             ELSE uc.frequency_minutes
+           END,
+           enabled = true,
+           next_check_at = LEAST(coalesce(uc.next_check_at, now()), now()),
+           updated_at = now()
+       FROM websites w
+       JOIN users u ON u.id = w.owner_user_id
+       LEFT JOIN user_subscriptions us ON us.user_id = w.owner_user_id
+       WHERE uc.website_id = w.id
+         AND w.deleted_at IS NULL
+         AND w.is_active = true
+         AND (
+           lower(u.email) = 'ashthedev0@gmail.com'
+           OR (us.status IN ('trialing', 'active', 'past_due') AND us.plan_key IN ('unlimited', 'committed', 'situationship'))
+         )`,
+    );
+    return;
+  }
+
+  await pool.query(
+    `INSERT INTO uptime_checks (
+      website_id,
+      url,
+      interval_seconds,
+      is_enabled,
+      updated_at
+    )
+    SELECT
+      w.id,
+      coalesce(nullif(trim(w.monitoring_url), ''), 'https://' || w.primary_domain),
+      CASE
+        WHEN lower(u.email) = 'ashthedev0@gmail.com' THEN 300
+        WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key IN ('unlimited', 'committed') THEN 300
+        WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key = 'situationship' THEN 900
+        ELSE $1::int
+      END,
+      true,
+      now()
+    FROM websites w
+    JOIN users u ON u.id = w.owner_user_id
+    LEFT JOIN user_subscriptions us ON us.user_id = w.owner_user_id
+    LEFT JOIN uptime_checks uc ON uc.website_id = w.id
+    WHERE w.deleted_at IS NULL
+      AND w.is_active = true
+      AND uc.id IS NULL
+    ON CONFLICT (website_id) DO NOTHING`,
+    [FREE_TIER_MIN_PROBE_GAP_MIN * 60],
+  );
+  await pool.query(
+    `UPDATE uptime_checks uc
+     SET interval_seconds = CASE
+           WHEN lower(u.email) = 'ashthedev0@gmail.com' THEN 300
+           WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key IN ('unlimited', 'committed') THEN 300
+           WHEN us.status IN ('trialing', 'active', 'past_due') AND us.plan_key = 'situationship' THEN 900
+           ELSE uc.interval_seconds
+         END,
+         is_enabled = true,
+         updated_at = now()
+     FROM websites w
+     JOIN users u ON u.id = w.owner_user_id
+     LEFT JOIN user_subscriptions us ON us.user_id = w.owner_user_id
+     WHERE uc.website_id = w.id
+       AND w.deleted_at IS NULL
+       AND w.is_active = true
+       AND (
+         lower(u.email) = 'ashthedev0@gmail.com'
+         OR (us.status IN ('trialing', 'active', 'past_due') AND us.plan_key IN ('unlimited', 'committed', 'situationship'))
+       )`,
+  );
+}
 
 export async function getActiveUptimeChecks(): Promise<ActiveUptimeCheck[]> {
   const pool = getPool();
+  const hasEnabled = await hasPublicColumn("uptime_checks", "enabled");
+  const hasIsEnabled = await hasPublicColumn("uptime_checks", "is_enabled");
+  const hasFrequencyMinutes = await hasPublicColumn("uptime_checks", "frequency_minutes");
+  const hasIntervalSeconds = await hasPublicColumn("uptime_checks", "interval_seconds");
+  const enabledColumn = hasEnabled ? "uc.enabled" : hasIsEnabled ? "uc.is_enabled" : "true";
+  const cadenceExpression = hasFrequencyMinutes
+    ? "GREATEST(coalesce(uc.frequency_minutes, $1::int), 1)"
+    : hasIntervalSeconds
+      ? "GREATEST(coalesce(uc.interval_seconds, $1::int * 60) / 60, 1)"
+      : "$1::int";
+
   const result = await pool.query<ActiveUptimeCheck>(
     `SELECT
        uc.id AS uptime_check_id,
        uc.website_id,
+       w.owner_user_id AS user_id,
        coalesce(
          nullif(trim(uc.url), ''),
          nullif(trim(w.monitoring_url), ''),
@@ -57,19 +187,18 @@ export async function getActiveUptimeChecks(): Promise<ActiveUptimeCheck[]> {
        ) AS url
      FROM uptime_checks uc
      JOIN websites w ON w.id = uc.website_id
-     LEFT JOIN user_subscriptions s ON s.user_id = w.owner_user_id
      LEFT JOIN LATERAL (
        SELECT max(ul.checked_at) AS last_at
        FROM uptime_logs ul
        WHERE ul.uptime_check_id = uc.id
+          OR ul.website_id = uc.website_id
      ) last_log ON true
-     WHERE uc.is_enabled = true
+     WHERE ${enabledColumn} = true
        AND w.is_active = true
        AND w.deleted_at IS NULL
        AND (
-         (COALESCE(s.status, '') IN ('trialing', 'active', 'past_due') AND s.plan_key IS NOT NULL)
-         OR last_log.last_at IS NULL
-         OR last_log.last_at < now() - ($1::int * interval '1 minute')
+         last_log.last_at IS NULL
+         OR last_log.last_at < now() - (${cadenceExpression} * interval '1 minute')
        )`,
     [FREE_TIER_MIN_PROBE_GAP_MIN],
   );
@@ -86,8 +215,10 @@ export async function getActiveUptimeChecks(): Promise<ActiveUptimeCheck[]> {
 
 export async function insertUptimeLog(input: InsertUptimeLogInput): Promise<void> {
   const pool = getPool();
+  const client = await pool.connect();
   try {
-    await pool.query(
+    await client.query("BEGIN");
+    await client.query(
       `INSERT INTO uptime_logs (
         user_id,
         website_id,
@@ -122,9 +253,22 @@ export async function insertUptimeLog(input: InsertUptimeLogInput): Promise<void
         input.errorMessage,
       ],
     );
+    await client.query(
+      `UPDATE uptime_checks
+       SET last_checked_at = $2::timestamptz,
+           next_check_at = $2::timestamptz + (
+             GREATEST(coalesce(frequency_minutes, interval_seconds / 60, $3::int), 1) * interval '1 minute'
+           ),
+           updated_at = now()
+       WHERE id = $1::uuid`,
+      [input.uptimeCheckId, input.checkedAt.toISOString(), FREE_TIER_MIN_PROBE_GAP_MIN],
+    );
+    await client.query("COMMIT");
   } catch {
+    await client.query("ROLLBACK").catch(() => undefined);
     // Backwards-compatible path for older schemas missing status/user_id columns.
-    await pool.query(
+    await client.query("BEGIN");
+    await client.query(
       `INSERT INTO uptime_logs (
         website_id,
         uptime_check_id,
@@ -144,6 +288,15 @@ export async function insertUptimeLog(input: InsertUptimeLogInput): Promise<void
         input.errorMessage,
       ],
     );
+    await client.query(
+      `UPDATE uptime_checks
+       SET updated_at = now()
+       WHERE id = $1::uuid`,
+      [input.uptimeCheckId],
+    ).catch(() => undefined);
+    await client.query("COMMIT");
+  } finally {
+    client.release();
   }
 }
 
@@ -249,12 +402,12 @@ export async function getWebsiteUptimeSnapshot(
         `SELECT
            uc.website_id,
            uc.frequency_minutes,
-           uc.last_checked_at::text,
+           coalesce(uc.last_checked_at, ul.checked_at)::text AS last_checked_at,
            ul.status,
            ul.is_up
          FROM uptime_checks uc
          LEFT JOIN LATERAL (
-           SELECT status, is_up
+           SELECT status, is_up, checked_at
            FROM uptime_logs
            WHERE website_id = uc.website_id
            ORDER BY checked_at DESC
@@ -276,12 +429,12 @@ export async function getWebsiteUptimeSnapshot(
       `SELECT
          uc.website_id,
          GREATEST(coalesce(uc.interval_seconds, 1800) / 60, 1)::int AS frequency_minutes,
-         null::text AS last_checked_at,
+         ul.checked_at::text AS last_checked_at,
          null::text AS status,
          ul.is_up
        FROM uptime_checks uc
        LEFT JOIN LATERAL (
-         SELECT is_up
+         SELECT is_up, checked_at
          FROM uptime_logs
          WHERE website_id = uc.website_id
          ORDER BY checked_at DESC

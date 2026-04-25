@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { spawn } from "node:child_process";
 import { authOptions } from "@/lib/auth/options";
 import { getBillingAccess } from "@/lib/billing/access";
+import { getPool } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,31 @@ function userVisibleCrawlFailureMessage(stderr: string, exitCode: number | null)
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status });
+}
+
+async function getLatestStoredReportSummary(siteId: string): Promise<{
+  reportCount: number;
+  latestReportAt: string | null;
+  latestPagesCrawled: number | null;
+}> {
+  const pool = getPool();
+  const result = await pool.query<{
+    report_count: string;
+    latest_report_at: string | null;
+    latest_pages_crawled: string | null;
+  }>(
+    `SELECT
+       (SELECT count(*)::text FROM response_code_reports WHERE site_id = $1::text) AS report_count,
+       (SELECT created_at::text FROM response_code_reports WHERE site_id = $1::text ORDER BY created_at DESC LIMIT 1) AS latest_report_at,
+       (SELECT pages_crawled::text FROM seo_crawl_runs WHERE site_id = $1::text ORDER BY created_at DESC LIMIT 1) AS latest_pages_crawled`,
+    [siteId],
+  );
+  const row = result.rows[0];
+  return {
+    reportCount: Number(row?.report_count ?? 0),
+    latestReportAt: row?.latest_report_at ?? null,
+    latestPagesCrawled: row?.latest_pages_crawled == null ? null : Number(row.latest_pages_crawled),
+  };
 }
 
 async function runUploadScript(siteIdOverride?: string): Promise<{
@@ -129,13 +155,26 @@ export async function POST(request: Request): Promise<Response> {
         ok: false,
         error: "crawl_unavailable",
         message:
-          "Starting a full crawl from the dashboard isn’t available in the hosted app yet. You’ll still see your last imported SEO report here—run fresh imports from your project checkout with npm run seo:run when you need new data.",
+          "This hosted dashboard can refresh stored report data, but it cannot start the local crawler process yet. Run npm run seo:run from the project checkout or connect a crawl worker to update the report.",
       },
       501,
     );
   }
 
-  const result = await runUploadScript(siteIdOverride);
+  const siteId = siteIdOverride;
+  if (!siteId) {
+    return json(
+      {
+        ok: false,
+        error: "missing_site_id",
+        message: "The crawl action did not receive a site ID. Reload the dashboard and try again.",
+      },
+      400,
+    );
+  }
+
+  const before = await getLatestStoredReportSummary(siteId).catch(() => null);
+  const result = await runUploadScript(siteId);
   if (!result.ok) {
     return json(
       {
@@ -147,9 +186,32 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  const after = await getLatestStoredReportSummary(siteId).catch(() => null);
+  if (!after || after.reportCount === 0) {
+    return json(
+      {
+        ok: false,
+        error: "crawl_completed_without_report",
+        message:
+          "The crawl process finished, but no report was stored for this site. Check the crawler start URL and APIFY_ACTOR_INPUT_JSON, then run it again.",
+      },
+      500,
+    );
+  }
+
+  const reportChanged =
+    !before?.latestReportAt ||
+    (after.latestReportAt != null && new Date(after.latestReportAt).getTime() > new Date(before.latestReportAt).getTime());
+  const pageText =
+    after.latestPagesCrawled != null && Number.isFinite(after.latestPagesCrawled)
+      ? `${after.latestPagesCrawled.toLocaleString("en-US")} pages`
+      : "stored pages";
+
   return json({
     ok: true,
-    message: "Crawl run completed.",
+    message: reportChanged
+      ? `Crawl completed and report updated (${pageText}).`
+      : `Crawl completed, but the latest stored report timestamp did not change. Showing the most recent report (${pageText}).`,
     exitCode: result.exitCode,
     stdout: result.stdout,
   });

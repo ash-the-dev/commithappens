@@ -11,9 +11,13 @@ export type UserPlanLimits = {
   monitoringEnabled: boolean;
   /** Minimum seconds between automated uptime runs for this tier */
   minUptimeIntervalSeconds: number;
+  /** Null means unlimited SEO crawls for plans that include SEO. */
+  maxSeoCrawlsPerSitePerWeek: number | null;
+  /** Null means unlimited AI recommendation refreshes for plans that include recommendations. */
+  maxRecommendationRunsPerSitePerWeek: number | null;
 };
 
-const FREE_UPTIME_SEC = 15 * 60;
+const FREE_UPTIME_SEC = 30 * 60;
 const PAID_UPTIME_SEC = 5 * 60;
 
 export function getUserPlanLimits(plan: string): UserPlanLimits {
@@ -26,6 +30,8 @@ export function getUserPlanLimits(plan: string): UserPlanLimits {
       monitoringLevel: "basic",
       monitoringEnabled: true,
       minUptimeIntervalSeconds: FREE_UPTIME_SEC,
+      maxSeoCrawlsPerSitePerWeek: 0,
+      maxRecommendationRunsPerSitePerWeek: 0,
     };
   }
   if (p === "situationship") {
@@ -36,16 +42,32 @@ export function getUserPlanLimits(plan: string): UserPlanLimits {
       monitoringLevel: "advanced",
       monitoringEnabled: true,
       minUptimeIntervalSeconds: PAID_UPTIME_SEC,
+      maxSeoCrawlsPerSitePerWeek: 0,
+      maxRecommendationRunsPerSitePerWeek: 0,
     };
   }
   if (p === "committed" || p === "pro") {
     return {
-      maxWebsites: 3,
+      maxWebsites: 5,
       canUseSEO: true,
       canUseIntelligence: true,
       monitoringLevel: "advanced",
       monitoringEnabled: true,
       minUptimeIntervalSeconds: PAID_UPTIME_SEC,
+      maxSeoCrawlsPerSitePerWeek: 1,
+      maxRecommendationRunsPerSitePerWeek: 1,
+    };
+  }
+  if (p === "unlimited" || p === "all-in" || p === "all in") {
+    return {
+      maxWebsites: 25,
+      canUseSEO: true,
+      canUseIntelligence: true,
+      monitoringLevel: "advanced",
+      monitoringEnabled: true,
+      minUptimeIntervalSeconds: PAID_UPTIME_SEC,
+      maxSeoCrawlsPerSitePerWeek: null,
+      maxRecommendationRunsPerSitePerWeek: null,
     };
   }
   return getUserPlanLimits("free");

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/app/providers";
 import { SiteJsonLd } from "@/components/seo/SiteJsonLd";
-import { getSitemapBaseUrl } from "@/lib/app-url";
+import { getPublicOrigin } from "@/lib/public-origin";
 import { DEFAULT_DESCRIPTION, SITE_NAME_DISPLAY, defaultKeywords } from "@/lib/seo/site-metadata";
 import "./globals.css";
 
@@ -18,10 +19,11 @@ const geistMono = Geist_Mono({
 });
 
 function metadataBaseUrl(): URL {
-  return new URL(getSitemapBaseUrl());
+  return new URL(getPublicOrigin());
 }
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
+const googleAnalyticsId = "G-TFJWYTYBG6";
 
 export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
@@ -51,7 +53,7 @@ export const metadata: Metadata = {
     description: DEFAULT_DESCRIPTION,
     images: [
       {
-        url: "/brand/commit-happens.png",
+        url: "/opengraph-image.png",
         width: 1200,
         height: 630,
         alt: "Commit Happens",
@@ -62,7 +64,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${SITE_NAME_DISPLAY} — website & deploy health`,
     description: DEFAULT_DESCRIPTION,
-    images: ["/brand/commit-happens.png"],
+    images: ["/twitter-image.png"],
   },
   ...(googleVerification
     ? { verification: { google: googleVerification } }
@@ -80,6 +82,18 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
+          strategy="beforeInteractive"
+        />
+        <Script id="google-analytics" strategy="beforeInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            window.gtag = function gtag(){window.dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${googleAnalyticsId}');
+          `}
+        </Script>
         <SiteJsonLd />
         <Providers>{children}</Providers>
         <Analytics />

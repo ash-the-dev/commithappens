@@ -10,38 +10,38 @@ function plural(value: number, one: string, many: string): string {
 
 export function DashboardSummary({ summary }: Props) {
   return (
-    <section className="ui-surface p-1 sm:p-1.5">
-      <div className="relative overflow-hidden rounded-[calc(1rem-3px)] border border-white/[0.09] bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_24px_60px_-48px_rgba(0,0,0,0.95)] backdrop-blur-sm sm:p-6">
+    <section className="rounded-3xl border border-slate-200 bg-white p-1 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)] sm:p-1.5">
+      <div className="relative overflow-hidden rounded-[calc(1rem-3px)] bg-white p-5 sm:p-6">
         <div
           className="pointer-events-none absolute -right-16 top-0 h-40 w-40 rounded-full bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--brand)_18%,transparent),transparent_70%)] opacity-80"
           aria-hidden
         />
-        <p className="ui-section-title text-white/50">Global status</p>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Global status</p>
         <div className="relative mt-4 grid gap-3 sm:grid-cols-3">
-          <article className="rounded-2xl border border-rose-300/25 bg-gradient-to-b from-rose-400/18 to-rose-950/20 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-100/90">Needs attention</p>
-            <p className="ui-kpi-value mt-1 text-white tabular-nums">{summary.sitesNeedingAttention}</p>
-            <p className="mt-1 text-xs text-rose-100/78">
+          <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">⚠ Needs attention</p>
+            <p className="ui-kpi-value mt-1 text-slate-950 tabular-nums">{summary.sitesNeedingAttention}</p>
+            <p className="mt-1 text-xs text-slate-600">
             {plural(summary.sitesNeedingAttention, "site has", "sites have")} active risk signals.
             </p>
           </article>
-          <article className="rounded-2xl border border-amber-300/25 bg-gradient-to-b from-amber-400/16 to-amber-950/15 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-100/90">Regressions</p>
-            <p className="ui-kpi-value mt-1 text-white tabular-nums">{summary.regressionsDetected}</p>
-            <p className="mt-1 text-xs text-amber-100/78">
+          <article className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Regressions</p>
+            <p className="ui-kpi-value mt-1 text-slate-950 tabular-nums">{summary.regressionsDetected}</p>
+            <p className="mt-1 text-xs text-slate-600">
             {plural(summary.regressionsDetected, "site regressed", "sites regressed")} since the previous scan.
             </p>
           </article>
-          <article className="rounded-2xl border border-emerald-300/25 bg-gradient-to-b from-emerald-400/16 to-emerald-950/15 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100/90">Stable</p>
-            <p className="ui-kpi-value mt-1 text-white tabular-nums">{summary.stableSites}</p>
-            <p className="mt-1 text-xs text-emerald-100/78">
+          <article className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">Stable</p>
+            <p className="ui-kpi-value mt-1 text-slate-950 tabular-nums">{summary.stableSites}</p>
+            <p className="mt-1 text-xs text-slate-600">
             {plural(summary.stableSites, "site is", "sites are")} steady or improving.
             </p>
           </article>
         </div>
       {summary.sitesWithoutScans > 0 ? (
-        <p className="mt-3 text-xs text-white/60">
+        <p className="mt-3 text-xs text-slate-500">
           {summary.sitesWithoutScans}{" "}
           {plural(summary.sitesWithoutScans, "site has", "sites have")} no crawl report yet. Run a scan to light up
           full metrics.

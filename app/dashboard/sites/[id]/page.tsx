@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { getRequestOrigin } from "@/lib/app-url";
 import { authOptions } from "@/lib/auth/options";
-import { LiveActivityCard } from "@/components/dashboard/LiveActivityCard";
 import { SiteAnalyticsCharts } from "@/components/dashboard/SiteAnalyticsCharts";
 import { SiteSeoHealth } from "@/components/dashboard/SiteSeoHealth";
 import { getSiteAnalytics, getSiteLiveActivity } from "@/lib/db/analytics";
@@ -46,18 +45,34 @@ import { getCaseWorkbenchData } from "@/lib/db/cases";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
 import { ResponseCodeDashboardCard } from "@/components/dashboard/ResponseCodeDashboardCard";
 import { RefreshPageDataButton } from "@/components/dashboard/RefreshPageDataButton";
-import { DashboardJumpNav } from "@/components/dashboard/DashboardJumpNav";
-import { DashboardOverviewCards } from "@/components/dashboard/DashboardOverviewCards";
-import type { OverviewCard } from "@/components/dashboard/DashboardOverviewCards";
 import { getBillingAccess } from "@/lib/billing/access";
-import { IntelligencePaywallCard } from "@/components/dashboard/IntelligencePaywallCard";
 import { UptimeMonitorCard } from "@/components/dashboard/UptimeMonitorCard";
-import { getWebsiteUptimeHistory, getWebsiteUptimeSnapshot } from "@/lib/db/uptime";
+import { ensureUptimeCheckForWebsite, getWebsiteUptimeHistory, getWebsiteUptimeSnapshot } from "@/lib/db/uptime";
+import { getPlanMonitoringFrequency } from "@/lib/billing/plan-monitoring";
 import { SeoCrawlIntelligenceSection } from "@/components/dashboard/SeoCrawlIntelligenceSection";
-import { PremiumTeaserCard } from "@/components/dashboard/PremiumTeaserCard";
-import { getLatestSeoCrawlRun, getTopCrawlIssues } from "@/lib/db/seo-crawl-intelligence";
+import {
+  getLatestSeoCrawlRun,
+  getSeoCrawlOnPageBreakdown,
+  getSeoCrawlRunHistory,
+  getTopCrawlIssues,
+} from "@/lib/db/seo-crawl-intelligence";
+import { buildSiteTrendsPayload } from "@/lib/dashboard/site-trends";
+import { SeoReportRefreshButton } from "@/components/dashboard/SeoReportRefreshButton";
+import { AiSeoRecommendationsCard } from "@/components/dashboard/AiSeoRecommendationsCard";
+import {
+  SiteCommandCenterDashboard,
+  type CommandCenterSummaryCard,
+  type CommandCenterTab,
+} from "@/components/dashboard/SiteCommandCenterDashboard";
 
 type Props = { params: Promise<{ id: string }> };
+
+function compactDate(iso: string | null | undefined): string {
+  if (!iso) return "Not run yet";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Not run yet";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 export default async function SiteDetailPage({ params }: Props) {
   const { id } = await params;
@@ -73,14 +88,38 @@ export default async function SiteDetailPage({ params }: Props) {
   const seoEnabled = billing.seoEnabled;
   const canUseIntelligence = billing.canUseIntelligence;
 
-  const [analytics, liveActivity, uptimeSnapshot, uptimeHistory, crawlSnapshot, topCrawlIssues] = await Promise.all([
+  await ensureUptimeCheckForWebsite({
+    websiteId: site.id,
+    userId: session.user.id,
+    frequencyMinutes: getPlanMonitoringFrequency(billing.accountKind),
+  }).catch((err) => {
+    console.error("[site-detail] failed to ensure uptime check", { siteId: site.id, err });
+  });
+
+  const [
+    analytics,
+    liveActivity,
+    uptimeSnapshot,
+    uptimeHistory,
+    crawlSnapshot,
+    topCrawlIssues,
+    crawlRunHistory,
+    onPageForReport,
+  ] = await Promise.all([
     getSiteAnalytics(site.id),
     getSiteLiveActivity(site.id, 25),
     getWebsiteUptimeSnapshot(site.id),
-    getWebsiteUptimeHistory(site.id, billing.accountKind === "free" ? 6 : 20),
+    getWebsiteUptimeHistory(site.id, 48).catch(() => []),
     getLatestSeoCrawlRun(site.id).catch(() => null),
     getTopCrawlIssues(site.id, 3).catch(() => []),
+    getSeoCrawlRunHistory(site.id, 18).catch(() => []),
+    getSeoCrawlOnPageBreakdown(site.id).catch(() => null),
   ]);
+  const uptimeCardHistory =
+    billing.accountKind === "free"
+      ? uptimeHistory.slice(0, 6)
+      : uptimeHistory.slice(0, 20);
+  const siteTrendsInitial = buildSiteTrendsPayload(crawlRunHistory, uptimeHistory);
 
   let threatOverview = emptyWebsiteThreatOverview();
   let changeImpacts: Awaited<ReturnType<typeof getWebsiteChangeImpacts>> = [];
@@ -155,286 +194,266 @@ export default async function SiteDetailPage({ params }: Props) {
   const snippet = `<script async src="${scriptSrc}" data-site-key="${site.tracking_public_key}"></script>`;
   const topChange = changeImpacts[0] ?? null;
 
-  const overviewCardsAll: OverviewCard[] = [
+  const apifyWorkerConfigured = Boolean(process.env.APIFY_API_TOKEN?.trim() && process.env.APIFY_ACTOR_ID?.trim());
+  const crawlUnavailableReason = seoEnabled && !apifyWorkerConfigured
+    ? "SEO crawl worker not connected yet. Stored reports can refresh, but new crawls need the worker enabled."
+    : null;
+  const crawlIssueTotal =
+    (crawlSnapshot?.notice_count ?? 0) +
+    (crawlSnapshot?.warning_count ?? 0) +
+    (crawlSnapshot?.critical_count ?? 0);
+  const attentionItems = Array.from(
+    new Set(
+      topCrawlIssues.map((issue) => {
+        const subject = issue.url || issue.title || site.primary_domain;
+        const priority = issue.priorityLabel || issue.issue_severity || "Review";
+        const label = issue.title && issue.title !== issue.url ? issue.title : issue.issue_type;
+        return `${priority}: ${label} on ${subject}`;
+      }),
+    ),
+  ).slice(0, 4);
+
+  const summaryCards: CommandCenterSummaryCard[] = [
+    {
+      id: "seo-health",
+      title: "SEO health",
+      value: crawlSnapshot ? `${Math.round(crawlSnapshot.health_score)}` : "No crawl",
+      caption: crawlSnapshot
+        ? `${crawlSnapshot.pages_crawled.toLocaleString("en-US")} pages in latest stored crawl`
+        : "Run a crawl and let’s get something to judge.",
+      badge: crawlSnapshot ? compactDate(crawlSnapshot.created_at) : "Waiting",
+      targetTab: "seo-crawl",
+      accent: "cyan",
+    },
     {
       id: "traffic",
       title: "Traffic",
-      helpMetricId: "traffic_overview",
-      metricPrimary: `${analytics.overview.sessions24h.toLocaleString("en-US")} visits (24h)`,
-      metricSecondary: `${analytics.overview.pageviews24h.toLocaleString("en-US")} pageviews (24h)`,
-      status:
-        analytics.overview.sessions24h > 0
-          ? "Signal is flowing."
-          : "No data yet. Verify tracker placement.",
-      trend: "stable" as const,
+      value: analytics.overview.sessions24h.toLocaleString("en-US"),
+      caption: `${analytics.overview.pageviews24h.toLocaleString("en-US")} pageviews in the last 24h`,
+      badge: "24h",
+      targetTab: "traffic",
+      accent: "blue",
     },
     {
       id: "performance",
       title: "Performance",
-      helpMetricId: "performance_overview",
-      metricPrimary: analytics.uptime.hasChecks24h
-        ? `${analytics.uptime.uptimePct24h.toFixed(2)}% uptime`
-        : "No uptime checks",
-      metricSecondary:
-        analytics.uptime.avgResponse24h > 0
-          ? `${Math.round(analytics.uptime.avgResponse24h)}ms avg response`
-          : "No response data yet",
-      status: analytics.uptime.hasChecks24h ? "Live probe data verified." : "Monitoring not configured yet.",
-      trend:
-        analytics.uptime.hasChecks24h && analytics.uptime.uptimePct24h >= 99 ? "up" : "down",
+      value:
+        analytics.vitalAverages.length > 0
+          ? `${analytics.vitalAverages.length} vitals`
+          : analytics.uptime.avgResponse24h > 0
+            ? `${Math.round(analytics.uptime.avgResponse24h)}ms`
+            : "No samples",
+      caption: "Real-user vitals plus probe history. Directional, not gospel.",
+      badge: "Directional",
+      targetTab: "performance",
+      accent: "violet",
     },
     {
       id: "issues",
       title: "Issues",
-      helpMetricId: "issues_overview",
-      metricPrimary: `${insights.detected_flags.length} active flags`,
-      metricSecondary: insights.summary_text,
-      status:
-        insights.detected_flags.length > 0 ? "Needs attention." : "No major issue signals.",
-      trend: insights.detected_flags.length > 0 ? "down" : "stable",
-    },
-    {
-      id: "health",
-      title: "Health",
-      helpMetricId: "health_overview",
-      metricPrimary: `${analytics.vitalAverages.length} CWV metrics`,
-      metricSecondary: analytics.vitalAverages.length > 0 ? "Performance samples available" : "No vitals yet",
-      status: analytics.vitalAverages.length > 0 ? "Quality telemetry active." : "Waiting on browser telemetry.",
-      trend: analytics.vitalAverages.length > 0 ? "up" : "stable",
+      value: crawlIssueTotal.toLocaleString("en-US"),
+      caption:
+        crawlIssueTotal > 0
+          ? "Crawl warnings, notices, and criticals that need triage."
+          : "No crawl issues stored yet. Suspiciously empty.",
+      badge: "Alert",
+      targetTab: canUseIntelligence ? "issues" : "seo-crawl",
+      accent: "amber",
     },
     {
       id: "changes",
-      title: "Changes",
-      helpMetricId: "changes_overview",
-      metricPrimary: `${changeImpacts.length} impact records`,
-      metricSecondary: topChange?.change_type ?? "No recent changes detected",
-      status: topChange ? "Latest deployment impact available." : "No new change impacts yet.",
-      trend: changeImpacts.length > 0 ? "up" : "stable",
+      title: "Recent change",
+      value: topChange?.change_type ?? "None",
+      caption: topChange ? "Latest impact record is ready for judgment." : "No recent deploy notes. Bold strategy.",
+      badge: `${changeImpacts.length} records`,
+      targetTab: canUseIntelligence ? "comparison" : "traffic",
+      accent: "pink",
     },
     {
-      id: "anomalies",
-      title: "Anomalies",
-      helpMetricId: "anomalies_overview",
-      metricPrimary: `${insights.anomalies.length} anomaly signal(s)`,
-      metricSecondary: latestAnomaly
-        ? `${latestAnomaly.metric_type} ${latestAnomaly.percent_change > 0 ? "+" : ""}${latestAnomaly.percent_change.toFixed(1)}%`
-        : "No anomaly spikes",
-      status: latestAnomaly ? "Review anomaly context." : "No anomaly movement.",
-      trend: latestAnomaly ? "down" : "stable",
+      id: "crawl-status",
+      title: "Crawl status",
+      value: crawlSnapshot ? compactDate(crawlSnapshot.created_at) : "Not run",
+      caption: apifyWorkerConfigured
+        ? "Apify worker is connected. Run SEO Crawl starts a background crawl."
+        : "Stored reports can refresh, but new crawls need the worker connected.",
+      badge: apifyWorkerConfigured ? "Worker ready" : "Worker off",
+      targetTab: "seo-crawl",
+      accent: "slate",
     },
   ];
-  const overviewCards: OverviewCard[] = canUseIntelligence
-    ? overviewCardsAll
-    : overviewCardsAll.filter((c) => c.id === "traffic" || c.id === "performance");
-  const jumpSections = canUseIntelligence
-    ? [
-        { id: "overview", label: "Overview" },
-        { id: "traffic", label: "Traffic" },
-        { id: "performance", label: "Performance" },
-        { id: "issues", label: "Issues" },
-        { id: "comparison", label: "Comparison" },
-        { id: "actions", label: "Actions" },
-        { id: "recent-activity", label: "Recent Activity" },
-      ]
-    : [
-        { id: "overview", label: "Overview" },
-        { id: "traffic", label: "Traffic" },
-        { id: "performance", label: "Performance" },
-        { id: "recent-activity", label: "Recent Activity" },
-        { id: "upgrade", label: "More" },
-      ];
+  const issueBreakdown = [
+    { name: "Critical", value: crawlSnapshot?.critical_count ?? 0 },
+    { name: "Warnings", value: crawlSnapshot?.warning_count ?? 0 },
+    { name: "Notices", value: crawlSnapshot?.notice_count ?? 0 },
+  ];
+  const detailTabs: CommandCenterTab[] = [
+    { id: "traffic", label: "Traffic" },
+    { id: "performance", label: "Performance" },
+    { id: "seo-crawl", label: "SEO Crawl" },
+    ...(canUseIntelligence
+      ? [
+          { id: "issues", label: "Issues" },
+          { id: "comparison", label: "Comparison" },
+          { id: "actions", label: "Actions" },
+          { id: "anomalies", label: "Anomalies" },
+        ]
+      : []),
+    { id: "install", label: "Install" },
+  ];
 
  return (
-    <main className="relative isolate mx-auto max-w-6xl space-y-10 overflow-hidden rounded-b-[1.5rem] px-6 py-12 sm:px-7">
+    <main className="relative isolate mx-auto max-w-6xl space-y-10 overflow-hidden rounded-b-3xl px-6 py-12 sm:px-7">
       <div className="ui-dashboard-ambient" aria-hidden />
       <div
         className="pointer-events-none absolute inset-x-0 top-0 z-0 h-80 bg-[radial-gradient(circle_at_top,rgba(246,121,208,0.18),transparent_58%)]"
         aria-hidden
       />
-      <div>
-        <Link
-          href="/dashboard"
-          className="text-xs font-bold uppercase tracking-[0.14em] text-brand/90 transition hover:text-brand hover:underline"
-        >
-          ← All sites
-        </Link>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{site.name}</h1>
-        <p className="mt-2 text-sm text-brand-muted">{site.primary_domain}</p>
-      </div>
-
-      <DashboardJumpNav sections={jumpSections} />
-      <DashboardOverviewCards cards={overviewCards} />
-
-      <details open className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-        <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">
-          Install snippet
-        </summary>
-        <div id="install" className="px-2 pb-2">
-          <DashboardSection
-            kicker="Install"
-            title="Paste this. Commit. Sleep slightly better."
-            subtitle={
-              <>
-                Put it before <span className="font-semibold text-slate-900">{"</body>"}</span> on every page you want
-                measured. Requests go to{" "}
-                <span className="font-mono text-xs font-semibold text-slate-900">{origin}</span>.
-              </>
-            }
-            meta="If this isn’t on a page, that page doesn’t exist to analytics. Harsh, but fair."
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0">
+          <Link
+            href="/dashboard"
+            className="text-xs font-bold uppercase tracking-[0.14em] text-brand/90 transition hover:text-brand hover:underline"
           >
-            <pre className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-slate-950 p-4 text-xs leading-relaxed text-white/85">
-              <code>{snippet}</code>
-            </pre>
-            <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Public key</p>
-              <p className="mt-2 text-xs text-slate-700">
-                Also duplicated as <span className="font-semibold text-slate-900">data-site-key</span> — this is how we
-                know which site the events belong to.
-              </p>
-              <p className="mt-2 break-all font-mono text-xs font-semibold text-slate-950">{site.tracking_public_key}</p>
-            </div>
-          </DashboardSection>
-        </div>
-      </details>
-
-      <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-        <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">Traffic</summary>
-        <div id="traffic" className="px-2 pb-2">
-          <DashboardSection
-            kicker="Reality check"
-            title="Traffic and engagement"
-            subtitle="Verified from pageviews.occurred_at and distinct session_id. No placeholder metrics."
-            eyebrowRight={<RefreshPageDataButton idleLabel="Refresh stats" loadingLabel="Refreshing..." />}
-          >
-            <SiteAnalyticsCharts analytics={analytics} />
-          </DashboardSection>
-        </div>
-      </details>
-
-      <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-        <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">Performance</summary>
-        <div id="performance" className="px-2 pb-2">
-          <div className="space-y-5">
-            <UptimeMonitorCard
-              snapshot={uptimeSnapshot}
-              history={uptimeHistory}
-              isFreeTier={billing.accountKind === "free"}
-            />
-            {billing.accountKind === "free" ? (
-              <PremiumTeaserCard
-                href="/pricing"
-                headline="Unlock richer monitoring history"
-                subtext="Paid plans include deeper uptime history and advanced monitoring analysis."
-                ctaLabel="Upgrade monitoring"
-              />
-            ) : null}
-            {billing.accountKind !== "free" ? (
-              <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
-            ) : null}
+            ← All sites
+          </Link>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{site.name}</h1>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/70">
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
+              Site selector: <span className="font-semibold text-white">{site.primary_domain}</span>
+            </span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
+              Last updated: <span className="font-semibold text-white">{compactDate(crawlSnapshot?.created_at ?? siteTrendsInitial.generatedAt)}</span>
+            </span>
           </div>
         </div>
-      </details>
+        <SeoReportRefreshButton
+          siteId={site.id}
+          seoEnabled={seoEnabled}
+          crawlUnavailableReason={crawlUnavailableReason}
+          variant="hero"
+        />
+      </div>
 
-      <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-        <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">
-          SEO crawl snapshot
-        </summary>
-        <div className="px-2 pb-2">
+      <SiteCommandCenterDashboard
+        summaryCards={summaryCards}
+        trends={siteTrendsInitial}
+        topPages={analytics.topPages}
+        issueBreakdown={issueBreakdown}
+        attentionItems={attentionItems}
+        activityItems={liveActivity}
+        tabs={detailTabs}
+      >
+        <DashboardSection
+          kicker="Reality check"
+          title="Traffic and engagement"
+          subtitle="Verified from pageviews.occurred_at and distinct session_id. No placeholder metrics."
+          eyebrowRight={<RefreshPageDataButton idleLabel="Refresh stats" loadingLabel="Refreshing..." />}
+        >
+          <SiteAnalyticsCharts analytics={analytics} />
+        </DashboardSection>
+
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-slate-700">
+            Uptime here is stored/manual probe data. Useful, but not a magic live-monitoring cape unless the runner is
+            actually scheduled.
+          </div>
+          <UptimeMonitorCard
+            snapshot={uptimeSnapshot}
+            history={uptimeCardHistory}
+          />
+          {billing.accountKind !== "free" ? (
+            <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
+          ) : null}
+        </div>
+
+        <div className="space-y-6">
           <SeoCrawlIntelligenceSection
             siteId={site.id}
             seoEnabled={seoEnabled}
+            crawlUnavailableReason={crawlUnavailableReason}
             latestRun={crawlSnapshot}
             topIssues={topCrawlIssues}
-            isFree={billing.accountKind === "free"}
           />
+          {canUseIntelligence && seoEnabled ? <AiSeoRecommendationsCard siteId={site.id} /> : null}
         </div>
-      </details>
 
-      {canUseIntelligence ? (
-        <>
-          <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-            <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">
-              Issues
-            </summary>
-            <div id="issues" className="space-y-6 px-2 pb-2">
-              <SiteInsightsCard insights={insights} />
-              <ThreatOverviewCard overview={threatOverview} leaderboard={threatLeaderboard} />
-              <FlaggedActivityCard items={flaggedActivity} />
-            </div>
-          </details>
-
-          <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-            <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">
-              Comparison
-            </summary>
-            <div id="comparison" className="space-y-6 px-2 pb-2">
-              {seoEnabled ? (
-                <ResponseCodeDashboardCard siteId={site.id} />
-              ) : (
-                <DashboardSection
-                  kicker="SEO intelligence"
-                  title="Committed plan unlock required"
-                  subtitle="Situationship includes monitoring and analysis. Upgrade to Committed for SEO crawling, comparison deltas, and action playbooks."
-                >
-                  <p className="text-sm text-slate-800">
-                    Start your 7-day trial of Committed to unlock crawl-based recommendations and side-by-side SEO
-                    comparison.
-                  </p>
-                </DashboardSection>
-              )}
-              <ChangeImpactCard impacts={changeImpacts} />
-              <ChangeImpactNarrativeCard narrative={changeNarrative} />
-            </div>
-          </details>
-
-          <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-            <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">Actions</summary>
-            <div id="actions" className="space-y-6 px-2 pb-2">
-              {recommendations ? <RecommendationsCard recommendations={recommendations} /> : null}
-              <NotificationCenterCard websiteId={site.id} notifications={notifications} />
-              <CaseWorkbenchCard
-                websiteId={site.id}
-                cases={caseWorkbench.cases}
-                notesByCaseId={caseWorkbench.notes_by_case_id}
-                notifications={notifications}
-              />
-              <PlaybookCard playbooks={alertCenter.playbooks} />
-              <AnalystChatCard websiteId={site.id} />
-            </div>
-          </details>
-
-          <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-            <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">Anomalies</summary>
-            <div id="anomalies" className="space-y-6 px-2 pb-2">
-              {aiSummary ? <AiSummaryCard summaryResult={aiSummary} /> : null}
-              <SpikeExplanationCard explanation={spikeExplanation} />
-              <AlertCenterCard alerts={alertCenter.alerts} />
-            </div>
-          </details>
-        </>
-      ) : (
-        <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-          <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">
-            Intelligence &amp; growth features
-          </summary>
-          <div id="upgrade" className="px-2 pb-2">
-            <IntelligencePaywallCard />
-            <div className="mt-4 opacity-90">
-              <p className="text-xs text-white/55">
-                On paid plans: SEO response-code comparison, change-impact narratives, AI analyst chat, case workflows,
-                and deep threat analysis.
-              </p>
-            </div>
+        {canUseIntelligence ? (
+          <div className="space-y-6">
+            <SiteInsightsCard insights={insights} />
+            <ThreatOverviewCard overview={threatOverview} leaderboard={threatLeaderboard} />
+            <FlaggedActivityCard items={flaggedActivity} />
           </div>
-        </details>
-      )}
+        ) : null}
 
-      <details className="rounded-3xl border border-white/20 bg-white/5 p-2 backdrop-blur-md">
-        <summary className="cursor-pointer rounded-2xl px-4 py-3 text-sm font-semibold text-white/90">Recent activity</summary>
-        <div id="recent-activity" className="px-2 pb-2">
-          <LiveActivityCard items={liveActivity} />
-        </div>
-      </details>
+        {canUseIntelligence ? (
+          <div className="space-y-6">
+            {seoEnabled ? (
+              <ResponseCodeDashboardCard siteId={site.id} onPageBreakdown={onPageForReport} />
+            ) : (
+              <DashboardSection
+                kicker="SEO intelligence"
+                title="SEO comparison is not enabled yet"
+                subtitle="The dashboard will show response-code comparison, crawl deltas, and action playbooks here as soon as SEO crawling is enabled for this account."
+              >
+                <p className="text-sm text-slate-800">
+                  Your traffic, probe samples, and latest crawl snapshot still stay visible above. This panel is reserved
+                  for the deeper response-code report.
+                </p>
+              </DashboardSection>
+            )}
+            <ChangeImpactCard impacts={changeImpacts} />
+            <ChangeImpactNarrativeCard narrative={changeNarrative} />
+          </div>
+        ) : null}
+
+        {canUseIntelligence ? (
+          <div className="space-y-6">
+            {recommendations ? <RecommendationsCard recommendations={recommendations} /> : null}
+            <NotificationCenterCard websiteId={site.id} notifications={notifications} />
+            <CaseWorkbenchCard
+              websiteId={site.id}
+              cases={caseWorkbench.cases}
+              notesByCaseId={caseWorkbench.notes_by_case_id}
+              notifications={notifications}
+            />
+            <PlaybookCard playbooks={alertCenter.playbooks} />
+            <AnalystChatCard websiteId={site.id} />
+          </div>
+        ) : null}
+
+        {canUseIntelligence ? (
+          <div className="space-y-6">
+            {aiSummary ? <AiSummaryCard summaryResult={aiSummary} /> : null}
+            <SpikeExplanationCard explanation={spikeExplanation} />
+            <AlertCenterCard alerts={alertCenter.alerts} />
+          </div>
+        ) : null}
+
+        <DashboardSection
+          kicker="Install"
+          title="Paste this. Commit. Sleep slightly better."
+          subtitle={
+            <>
+              Put it before <span className="font-semibold text-slate-900">{"</body>"}</span> on every page you want
+              measured. Requests go to{" "}
+              <span className="font-mono text-xs font-semibold text-slate-900">{origin}</span>.
+            </>
+          }
+          meta="If this isn’t on a page, that page doesn’t exist to analytics. Harsh, but fair."
+        >
+          <pre className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-slate-950 p-4 text-xs leading-relaxed text-white/85">
+            <code>{snippet}</code>
+          </pre>
+          <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Public key</p>
+            <p className="mt-2 text-xs text-slate-700">
+              Also duplicated as <span className="font-semibold text-slate-900">data-site-key</span> — this is how we
+              know which site the events belong to.
+            </p>
+            <p className="mt-2 break-all font-mono text-xs font-semibold text-slate-950">{site.tracking_public_key}</p>
+          </div>
+        </DashboardSection>
+      </SiteCommandCenterDashboard>
 
       <DashboardSection
         emphasis="red"

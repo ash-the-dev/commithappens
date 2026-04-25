@@ -1,4 +1,4 @@
-export type MonitoringPlan = "free" | "situationship" | "committed" | "agency";
+export type MonitoringPlan = "free" | "situationship" | "committed" | "unlimited" | "agency";
 
 /**
  * Default monitoring cadence (minutes) by plan.
@@ -8,6 +8,7 @@ export function getPlanMonitoringFrequency(plan: string | null | undefined): num
   const normalized = (plan ?? "free").trim().toLowerCase();
   switch (normalized) {
     case "agency":
+    case "unlimited":
       return 1;
     case "committed":
     case "pro":

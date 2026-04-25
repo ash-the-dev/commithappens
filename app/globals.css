@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050505;
+  --background: #050816;
   --foreground: #fafafa;
   /* Averaged from pink strokes/fills in public/brand/commit-happens.png (logo asset). */
   --brand: #f679d0;
   --brand-muted: #ffa8e6;
-  --card: rgba(255, 255, 255, 0.04);
-  --border: rgba(255, 255, 255, 0.12);
+  --card: #ffffff;
+  --border: rgba(148, 163, 184, 0.24);
   /* Wave hero (Pretty Fly–style pink → purple → blue). */
   --wave-pink: #f679d0;
   --wave-purple: #a855f7;
@@ -54,7 +54,8 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    linear-gradient(180deg, #0b1224 0%, #050816 52%, #020617 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
@@ -82,6 +83,33 @@ body {
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
 }
 
+.auth-card {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, white 10%, transparent) 0%,
+      color-mix(in srgb, white 4%, transparent) 34%
+    ),
+    rgba(8, 13, 29, 0.88);
+  color: var(--foreground);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent),
+    0 24px 70px -42px color-mix(in srgb, var(--brand) 45%, rgba(0, 0, 0, 0.95));
+}
+
+.auth-input {
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--foreground);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.auth-input:focus {
+  border-color: var(--brand);
+}
+
 /* Strategic light contrast modules for visual dimension and focal hierarchy. */
 /* Full-width dashboard pages: soft wave wash behind content (stays in theme, no layout shift). */
 .ui-dashboard-ambient {
@@ -98,18 +126,17 @@ body {
   position: absolute;
   inset: -1px;
   background:
-    radial-gradient(ellipse 1100px 520px at 10% -12%, color-mix(in srgb, var(--wave-pink) 20%, transparent), transparent 55%),
-    radial-gradient(ellipse 900px 400px at 92% 8%, color-mix(in srgb, var(--wave-purple) 12%, transparent), transparent 52%),
-    radial-gradient(ellipse 700px 320px at 50% 108%, color-mix(in srgb, var(--wave-blue) 10%, transparent), transparent 48%);
-  opacity: 0.88;
+    radial-gradient(ellipse 900px 360px at 8% -8%, color-mix(in srgb, var(--wave-blue) 13%, transparent), transparent 58%),
+    radial-gradient(ellipse 760px 300px at 90% 2%, color-mix(in srgb, var(--wave-purple) 10%, transparent), transparent 56%);
+  opacity: 0.72;
 }
 
 .ui-dashboard-ambient::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, color-mix(in srgb, white 2.5%, transparent) 0%, transparent 38%, color-mix(in srgb, black 35%, transparent) 100%);
-  opacity: 0.55;
+  background: linear-gradient(180deg, color-mix(in srgb, white 2%, transparent) 0%, transparent 38%, color-mix(in srgb, black 45%, transparent) 100%);
+  opacity: 0.42;
 }
 
 .ui-surface-contrast {
@@ -156,54 +183,57 @@ body {
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.02em;
+  animation: kpi-rise 420ms ease both;
 }
 
 /* Dashboard storytelling + hierarchy (CommitHappens product UI) */
 .ui-dash-shell {
   border-radius: 1.35rem;
-  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
-  background:
-    radial-gradient(900px 420px at 18% 0%, color-mix(in srgb, var(--wave-pink) 22%, transparent), transparent 62%),
-    radial-gradient(900px 520px at 92% 10%, color-mix(in srgb, var(--wave-blue) 18%, transparent), transparent 58%),
-    linear-gradient(180deg, color-mix(in srgb, white 7%, transparent), color-mix(in srgb, black 78%, transparent));
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
-    0 26px 70px -46px rgba(0, 0, 0, 0.95);
+  background: transparent;
 }
 
 .ui-dash-card {
+  position: relative;
+  overflow: hidden;
   border-radius: 1.05rem;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 247, 249, 0.94) 100%);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
   color: #0b0f14;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 18px 40px -34px rgba(0, 0, 0, 0.75);
+    0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 50px -34px rgba(15, 23, 42, 0.55);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.ui-dash-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--wave-blue), var(--wave-purple), var(--wave-cyan));
+}
+
+.ui-dash-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(191, 219, 254, 0.95);
+  box-shadow:
+    0 28px 70px -42px rgba(59, 130, 246, 0.5),
+    0 8px 24px -18px rgba(15, 23, 42, 0.45);
 }
 
 .ui-dash-card--pink {
-  border-color: color-mix(in srgb, var(--wave-pink) 35%, rgba(255, 255, 255, 0.55));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 0 0 1px color-mix(in srgb, var(--wave-pink) 18%, transparent),
-    0 22px 60px -40px color-mix(in srgb, var(--wave-pink) 35%, transparent);
+  border-color: color-mix(in srgb, var(--wave-purple) 32%, #e2e8f0);
 }
 
 .ui-dash-card--green {
-  border-color: color-mix(in srgb, #22c55e 35%, rgba(255, 255, 255, 0.55));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 0 0 1px color-mix(in srgb, #22c55e 18%, transparent),
-    0 22px 60px -40px color-mix(in srgb, #22c55e 28%, transparent);
+  border-color: color-mix(in srgb, var(--wave-cyan) 34%, #e2e8f0);
 }
 
 .ui-dash-card--red {
-  border-color: color-mix(in srgb, #fb7185 40%, rgba(255, 255, 255, 0.55));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 0 0 1px color-mix(in srgb, #fb7185 18%, transparent),
-    0 22px 60px -40px color-mix(in srgb, #fb7185 30%, transparent);
+  border-color: color-mix(in srgb, #f59e0b 42%, #e2e8f0);
 }
 
 .ui-dash-kicker {
@@ -274,18 +304,21 @@ body {
 }
 
 .ui-dash-pill--good {
-  border-color: color-mix(in srgb, #22c55e 35%, rgba(15, 23, 42, 0.12));
-  background: color-mix(in srgb, #22c55e 12%, white);
+  border-color: color-mix(in srgb, var(--wave-blue) 35%, rgba(15, 23, 42, 0.12));
+  background: color-mix(in srgb, var(--wave-blue) 12%, white);
+  color: #1d4ed8;
 }
 
 .ui-dash-pill--mid {
-  border-color: color-mix(in srgb, #f59e0b 35%, rgba(15, 23, 42, 0.12));
-  background: color-mix(in srgb, #f59e0b 12%, white);
+  border-color: color-mix(in srgb, var(--wave-purple) 35%, rgba(15, 23, 42, 0.12));
+  background: color-mix(in srgb, var(--wave-purple) 12%, white);
+  color: #6d28d9;
 }
 
 .ui-dash-pill--bad {
-  border-color: color-mix(in srgb, #fb7185 40%, rgba(15, 23, 42, 0.12));
-  background: color-mix(in srgb, #fb7185 12%, white);
+  border-color: color-mix(in srgb, #f59e0b 42%, rgba(15, 23, 42, 0.12));
+  background: color-mix(in srgb, #f59e0b 12%, white);
+  color: #b45309;
 }
 
 ::selection {
@@ -341,8 +374,8 @@ body {
   }
   100% {
     background-position:
-      26px 26px,
-      26px 26px;
+      28px 28px,
+      28px 28px;
   }
 }
 
@@ -353,6 +386,17 @@ body {
   }
   50% {
     transform: translateY(-4px);
+  }
+}
+
+@keyframes kpi-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -483,9 +527,9 @@ body {
 .hero-grid-bg {
   background-color: var(--background);
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 52px 52px;
+    linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+  background-size: 28px 28px;
   mask-image: radial-gradient(ellipse 85% 70% at 50% 40%, black 20%, transparent 72%);
   animation: hero-grid-drift 32s linear infinite;
 }
@@ -497,11 +541,24 @@ body {
   opacity: 0.8;
 }
 
-.hero-live-card {
+.hero-pointer-glow {
+  --hero-pointer-x: 50%;
+  --hero-pointer-y: 38%;
+  --hero-pointer-opacity: 0;
+  background:
+    radial-gradient(circle 210px at var(--hero-pointer-x) var(--hero-pointer-y), color-mix(in srgb, var(--wave-pink) 34%, transparent), transparent 58%),
+    radial-gradient(circle 145px at var(--hero-pointer-x) var(--hero-pointer-y), color-mix(in srgb, var(--wave-cyan) 22%, transparent), transparent 62%),
+    radial-gradient(circle 330px at var(--hero-pointer-x) var(--hero-pointer-y), rgba(255, 255, 255, 0.11), transparent 70%);
+  mix-blend-mode: screen;
+  opacity: var(--hero-pointer-opacity);
+  transition: opacity 220ms ease;
+}
+
+.hero-result-card {
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 14%, transparent),
-    0 24px 60px -46px rgba(0, 0, 0, 0.95),
-    0 0 0 1px color-mix(in srgb, var(--brand) 18%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 24px 60px -42px color-mix(in srgb, var(--brand) 35%, rgba(0, 0, 0, 0.65)),
+    0 0 0 1px color-mix(in srgb, var(--brand) 16%, transparent);
 }
 
 .animate-float-soft {
@@ -510,7 +567,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .hero-grid-bg,
-  .animate-float-soft {
+  .animate-float-soft,
+  .ui-kpi-value {
     animation: none;
   }
 }
