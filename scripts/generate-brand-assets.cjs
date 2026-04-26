@@ -8,9 +8,92 @@ const fs = require("fs");
 
 const root = path.join(__dirname, "..");
 const logoInput = path.join(root, "app", "Assets", "Logo.png");
-const iconInput = path.join(root, "app", "Assets", "LittleCommitHappens.png");
-const ogInput = path.join(root, "app", "Assets", "CommitHappensOG.png");
 const publicLogo = path.join(root, "public", "brand", "commit-happens.png");
+
+function neonCMarkSvg(size) {
+  return Buffer.from(`
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bgGlow" cx="50%" cy="45%" r="72%">
+          <stop offset="0" stop-color="#32103f"/>
+          <stop offset="0.58" stop-color="#070713"/>
+          <stop offset="1" stop-color="#000000"/>
+        </radialGradient>
+        <linearGradient id="stroke" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ff4fc3"/>
+          <stop offset="0.58" stop-color="#f679d0"/>
+          <stop offset="1" stop-color="#a855f7"/>
+        </linearGradient>
+        <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="${Math.max(1, size * 0.025)}" result="blur"/>
+          <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 0.2 0 0 0.2  0 0 1 0 0.9  0 0 0 0.85 0"/>
+          <feMerge>
+            <feMergeNode/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <rect width="${size}" height="${size}" rx="${size * 0.22}" fill="url(#bgGlow)"/>
+      <text
+        x="50%"
+        y="53%"
+        text-anchor="middle"
+        dominant-baseline="middle"
+        font-family="Arial Black, Impact, sans-serif"
+        font-size="${size * 0.76}"
+        font-weight="900"
+        fill="#05040a"
+        stroke="url(#stroke)"
+        stroke-width="${size * 0.07}"
+        paint-order="stroke fill"
+        filter="url(#glow)"
+      >C</text>
+    </svg>
+  `);
+}
+
+function socialImageSvg() {
+  return Buffer.from(`
+    <svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bg" cx="50%" cy="45%" r="78%">
+          <stop offset="0" stop-color="#23082e"/>
+          <stop offset="0.56" stop-color="#060611"/>
+          <stop offset="1" stop-color="#000000"/>
+        </radialGradient>
+        <linearGradient id="pink" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ff4fc3"/>
+          <stop offset="0.52" stop-color="#f679d0"/>
+          <stop offset="1" stop-color="#a855f7"/>
+        </linearGradient>
+        <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="18" result="blur"/>
+          <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 0.2 0 0 0.2  0 0 1 0 0.9  0 0 0 0.75 0"/>
+          <feMerge>
+            <feMergeNode/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <rect width="1200" height="630" fill="url(#bg)"/>
+      <circle cx="600" cy="315" r="250" fill="#ff4fc3" opacity="0.08"/>
+      <text
+        x="50%"
+        y="51%"
+        text-anchor="middle"
+        dominant-baseline="middle"
+        font-family="Arial Black, Impact, sans-serif"
+        font-size="390"
+        font-weight="900"
+        fill="#05040a"
+        stroke="url(#pink)"
+        stroke-width="34"
+        paint-order="stroke fill"
+        filter="url(#softGlow)"
+      >C</text>
+    </svg>
+  `);
+}
 
 function icoFromPng(png) {
   const header = Buffer.alloc(22);
@@ -31,7 +114,7 @@ function icoFromPng(png) {
 }
 
 async function main() {
-  for (const input of [logoInput, iconInput, ogInput]) {
+  for (const input of [logoInput]) {
     if (!fs.existsSync(input)) {
       console.error("Missing:", input);
       process.exit(1);
@@ -41,7 +124,7 @@ async function main() {
   fs.mkdirSync(path.dirname(publicLogo), { recursive: true });
   await fs.promises.copyFile(logoInput, publicLogo);
 
-  const iconPipeline = () => sharp(iconInput);
+  const iconPipeline = () => sharp(neonCMarkSvg(512));
 
   await iconPipeline()
     .resize(32, 32, {
@@ -68,11 +151,7 @@ async function main() {
     .png()
     .toFile(path.join(root, "app", "apple-icon.png"));
 
-  await sharp(ogInput)
-    .resize(1200, 630, {
-      fit: "cover",
-      position: "centre",
-    })
+  await sharp(socialImageSvg())
     .png()
     .toFile(path.join(root, "app", "opengraph-image.png"));
 
