@@ -37,18 +37,18 @@ export function getUserPlanLimits(plan: string): UserPlanLimits {
   if (p === "situationship") {
     return {
       maxWebsites: 1,
-      canUseSEO: false,
+      canUseSEO: true,
       canUseIntelligence: true,
       monitoringLevel: "advanced",
       monitoringEnabled: true,
       minUptimeIntervalSeconds: PAID_UPTIME_SEC,
-      maxSeoCrawlsPerSitePerWeek: 0,
-      maxRecommendationRunsPerSitePerWeek: 0,
+      maxSeoCrawlsPerSitePerWeek: 1,
+      maxRecommendationRunsPerSitePerWeek: 1,
     };
   }
   if (p === "committed" || p === "pro") {
     return {
-      maxWebsites: 5,
+      maxWebsites: 3,
       canUseSEO: true,
       canUseIntelligence: true,
       monitoringLevel: "advanced",

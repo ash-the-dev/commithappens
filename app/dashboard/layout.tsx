@@ -7,6 +7,7 @@ import { CommitHappensMark } from "@/components/brand/CommitHappensMark";
 import { authOptions } from "@/lib/auth/options";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { ThemePicker } from "@/components/theme/ThemePicker";
+import { BetaBadge } from "@/components/ui/BetaBadge";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: true },
@@ -32,6 +33,7 @@ export default async function DashboardLayout({
               variant="dashboard"
               scale="dashboardXL"
             />
+            <BetaBadge compact className="hidden lg:inline-flex" />
             <nav className="flex items-center gap-1 text-sm text-white/72">
               <Link
                 className="rounded-lg px-2.5 py-1.5 transition hover:bg-white/6 hover:text-brand"
@@ -53,7 +55,7 @@ export default async function DashboardLayout({
               </Link>
               <Link
                 className="rounded-lg px-2.5 py-1.5 transition hover:bg-white/6 hover:text-brand"
-                href="/billing"
+                href="/dashboard/billing"
               >
                 Billing
               </Link>

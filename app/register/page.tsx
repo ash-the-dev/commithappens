@@ -7,7 +7,7 @@ import { SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
 
 export const metadata: Metadata = {
   title: "Create account",
-  description: `Create a ${SITE_NAME_DISPLAY} account. 3 days free, cancel before renewal anytime.`,
+  description: `Create a ${SITE_NAME_DISPLAY} account during beta.`,
   robots: { index: false, follow: true },
   alternates: { canonical: "/register" },
 };
@@ -30,7 +30,7 @@ export default async function RegisterPage({ searchParams }: Props) {
           </div>
           <h1 className="text-3xl font-semibold text-white">Create your account</h1>
           <p className="text-sm text-white/60">
-            Paid plans include a 3-day free trial.{" "}
+            Start with the tier that matches your current chaos level.{" "}
             <Link className="text-brand hover:underline" href="/pricing">
               See pricing
             </Link>

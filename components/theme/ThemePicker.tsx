@@ -43,7 +43,7 @@ export function ThemePicker() {
   const index = THEMES.findIndex((theme) => theme.id === themeId);
   const activeTheme = THEMES[index >= 0 ? index : 0];
   const nextTheme = THEMES[(index + 1) % THEMES.length];
-  const swatch = `conic-gradient(${activeTheme.vars.wavePink}, ${activeTheme.vars.wavePurple}, ${activeTheme.vars.waveBlue}, ${activeTheme.vars.waveCyan}, ${activeTheme.vars.wavePink})`;
+  const swatch = `conic-gradient(${activeTheme.vars.accentPrimary}, ${activeTheme.vars.wavePurple}, ${activeTheme.vars.waveBlue}, ${activeTheme.vars.accentSecondary}, ${activeTheme.vars.accentPrimary})`;
 
   return (
     <div className="inline-flex items-center gap-2">

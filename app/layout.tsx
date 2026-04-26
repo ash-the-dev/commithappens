@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/app/providers";
 import { SiteJsonLd } from "@/components/seo/SiteJsonLd";
+import { SiteFooter } from "@/components/layout/SiteFooter";
 import { getPublicOrigin } from "@/lib/public-origin";
 import { DEFAULT_DESCRIPTION, SITE_NAME_DISPLAY, defaultKeywords } from "@/lib/seo/site-metadata";
 import "./globals.css";
@@ -106,6 +107,7 @@ export default function RootLayout({
         </Script>
         <SiteJsonLd />
         <Providers>{children}</Providers>
+        <SiteFooter />
         <Analytics />
       </body>
     </html>

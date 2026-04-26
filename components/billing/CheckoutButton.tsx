@@ -40,7 +40,7 @@ export function CheckoutButton({ planKey, label, className }: Props) {
           }
         }}
       >
-        {pending ? "Starting trial..." : label}
+        {pending ? "Starting..." : label}
       </button>
       {error ? <p className="text-xs text-rose-300">{error}</p> : null}
     </div>

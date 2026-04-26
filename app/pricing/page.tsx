@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { InteractiveGridBackdrop } from "@/components/background/InteractiveGridBackdrop";
+import { BetaBadge } from "@/components/ui/BetaBadge";
 import { PRICING_TITLE, SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
 import { freePricingPlan, paidPricingPlans } from "@/lib/pricingPlans";
 
 const pricingDescription =
-  "Start a 3-day free trial. See what changed, what broke, and what actually matters. Cancel before renewal anytime.";
+  "Beta pricing for Commit Happens. See what changed, what broke, and what actually matters after deploys.";
 
 export const metadata: Metadata = {
   title: PRICING_TITLE,
@@ -14,16 +15,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: "/pricing",
-    title: `Pricing & free trial · ${SITE_NAME_DISPLAY}`,
+    title: `Beta pricing · ${SITE_NAME_DISPLAY}`,
     description: pricingDescription,
   },
   twitter: {
-    title: `Pricing & free trial · ${SITE_NAME_DISPLAY}`,
+    title: `Beta pricing · ${SITE_NAME_DISPLAY}`,
     description: pricingDescription,
   },
   keywords: [
     "pricing",
-    "free trial",
+    "beta pricing",
     "Commit Happens",
     "website monitoring plans",
     "seo monitoring",
@@ -44,9 +45,10 @@ export default function PricingPage() {
         </Link>
 
         <div className="space-y-3 text-center">
-          <h1 className="text-4xl font-semibold text-white">Start your 3-day free trial</h1>
+          <BetaBadge className="mx-auto" />
+          <h1 className="text-4xl font-semibold text-white">Beta pricing that knows what it is</h1>
           <p className="mx-auto max-w-2xl text-sm text-white/70">
-            See what changed, what broke, and what actually matters. Cancel before renewal anytime.
+            Commit Happens is currently in beta. Features may evolve as we refine the platform, but the goal stays simple: show what changed, what broke, and what matters.
           </p>
         </div>
 

@@ -493,10 +493,10 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
           ) : null}
         </div>
 
-        <div className="mt-4 h-72 w-full rounded-2xl border border-slate-200/80 bg-white/70 p-3">
+        <div className="ui-chart-shell mt-4 h-68 w-full p-2">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={timeline}>
-              <CartesianGrid stroke="rgba(15,23,42,0.10)" strokeDasharray="3 3" />
+              <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
               <XAxis
                 dataKey="label"
                 tick={{ fill: "rgba(15,23,42,0.62)", fontSize: 12 }}
@@ -550,24 +550,30 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
                 dataKey="sessions"
                 name="Sessions (visits that started)"
                 stroke="var(--brand)"
-                strokeWidth={2.6}
+                strokeWidth={1.9}
                 dot={false}
+                isAnimationActive
+                animationDuration={700}
               />
               <Line
                 type="monotone"
                 dataKey="pageviews"
                 name="Pageviews (pages loaded)"
                 stroke="var(--wave-blue)"
-                strokeWidth={2.3}
+                strokeWidth={1.8}
                 dot={false}
+                isAnimationActive
+                animationDuration={700}
               />
               <Line
                 type="monotone"
                 dataKey="events"
                 name="Events (things you track on purpose)"
                 stroke="var(--wave-cyan)"
-                strokeWidth={2.3}
+                strokeWidth={1.8}
                 dot={false}
+                isAnimationActive
+                animationDuration={700}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -640,14 +646,14 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
             </p>
           </div>
 
-          <div className="mt-4 h-80 w-full rounded-2xl border border-slate-200/60 bg-linear-to-b from-white/85 to-white/65 p-4 shadow-inner sm:h-88">
+          <div className="ui-chart-shell mt-4 h-72 w-full p-2 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={topPagesForChart}
                 margin={{ top: 8, right: 8, left: 4, bottom: 88 }}
                 barCategoryGap="18%"
               >
-                <CartesianGrid stroke="rgba(15,23,42,0.06)" vertical={false} strokeDasharray="3 3" />
+                <CartesianGrid stroke="rgba(15,23,42,0.055)" vertical={false} strokeDasharray="2 6" />
                 <XAxis
                   dataKey="short"
                   type="category"
@@ -684,9 +690,11 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
                   dataKey="views"
                   name="Pageviews"
                   fill="url(#barGrad)"
-                  fillOpacity={0.92}
-                  radius={[10, 10, 0, 0]}
-                  maxBarSize={44}
+                  fillOpacity={0.74}
+                  radius={[8, 8, 0, 0]}
+                  maxBarSize={34}
+                  isAnimationActive
+                  animationDuration={650}
                 >
                   <LabelList
                     dataKey="views"

@@ -5,7 +5,7 @@ export default function BillingCancelPage() {
     <main className="mx-auto max-w-2xl space-y-4 px-6 py-16 text-center">
       <h1 className="text-3xl font-semibold text-white">Checkout canceled</h1>
       <p className="text-sm text-white/70">
-        No charge was made. You can restart your 3-day trial any time.
+        No charge was made. You can pick a beta plan whenever the chaos feels ready.
       </p>
       <Link
         href="/pricing"

@@ -62,7 +62,6 @@ export async function POST(request: Request): Promise<Response> {
     cancel_url: `${origin}/billing/cancel`,
     allow_promotion_codes: true,
     subscription_data: {
-      trial_period_days: 7,
       metadata: {
         user_id: session.user.id,
         plan_key: planKey,

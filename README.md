@@ -74,10 +74,11 @@ APIFY_ACTOR_RUN_ID=...    # manual import mode
 
 ## Billing (Stripe subscriptions)
 
-The app supports paid plans with a 3-day free trial:
+The app supports beta paid plans:
 
-- `situationship` -> monitoring + analysis, no SEO toolkit
+- `situationship` -> 1 monitored site, monthly crawl, AI recommendations, analytics
 - `committed` -> SEO + monitoring + analysis, up to 3 sites
+- `unlimited` -> up to 25 sites with weekly crawls per site
 
 Required env vars:
 
@@ -91,7 +92,7 @@ STRIPE_PRICE_ID_COMMITTED_MONTHLY=price_...
 
 Routes:
 
-- `POST /api/billing/checkout` -> create Stripe Checkout session (`subscription`, 3-day trial)
+- `POST /api/billing/checkout` -> create Stripe Checkout session (`subscription`)
 - `POST /api/billing/portal` -> Stripe Customer Portal session
 - `POST /api/billing/webhook` -> Stripe event handler for subscription state sync
 

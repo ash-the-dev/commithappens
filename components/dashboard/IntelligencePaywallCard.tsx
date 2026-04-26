@@ -26,7 +26,7 @@ export function IntelligencePaywallCard({
           Unlock full intelligence
         </Link>
         <Link
-          href="/billing"
+          href="/dashboard/billing"
           className="text-sm font-semibold text-slate-700 underline-offset-2 hover:underline"
         >
           Billing

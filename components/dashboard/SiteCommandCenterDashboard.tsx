@@ -80,7 +80,7 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
   }));
 
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)] lg:col-span-2">
+    <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)] lg:col-span-2">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">SEO command chart</p>
@@ -93,10 +93,10 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
           {trends.source === "demo" ? "Sample data" : trends.source === "partial" ? "Partial data" : "Stored data"}
         </span>
       </div>
-      <div className="mt-5 h-72 rounded-2xl border border-slate-200/80 bg-white/80 p-3">
+      <div className="ui-chart-shell mt-5 h-68 p-2">
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <LineChart data={chartData}>
-            <CartesianGrid stroke="rgba(15,23,42,0.08)" strokeDasharray="3 3" />
+            <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
             <YAxis yAxisId="score" domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
             <YAxis yAxisId="issues" orientation="right" tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
@@ -108,8 +108,8 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
               }}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line yAxisId="score" type="monotone" dataKey="score" name="SEO health" stroke="var(--brand)" strokeWidth={3} dot={false} />
-            <Line yAxisId="issues" type="monotone" dataKey="issues" name="Issues" stroke="var(--wave-cyan)" strokeWidth={2.5} dot={false} />
+            <Line yAxisId="score" type="monotone" dataKey="score" name="SEO health" stroke="var(--brand)" strokeWidth={1.9} dot={false} isAnimationActive animationDuration={700} />
+            <Line yAxisId="issues" type="monotone" dataKey="issues" name="Issues" stroke="var(--wave-cyan)" strokeWidth={1.8} dot={false} isAnimationActive animationDuration={700} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -119,7 +119,7 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
 
 function AttentionCard({ items }: { items: string[] }) {
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)]">
+    <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-600">Needs attention</p>
       <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">What to look at now</h2>
       <div className="mt-4 space-y-3">
@@ -155,14 +155,14 @@ function TopPagesCard({ topPages }: { topPages: SiteTopPage[] }) {
   );
 
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)]">
+    <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Top pages</p>
       <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Where attention is landing</h2>
-      <div className="mt-4 h-72 rounded-2xl border border-slate-200/80 bg-white/80 p-3">
+      <div className="ui-chart-shell mt-4 h-68 p-2">
         {data.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 54 }}>
-              <CartesianGrid stroke="rgba(15,23,42,0.07)" vertical={false} />
+              <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
               <XAxis dataKey="label" angle={-28} textAnchor="end" height={58} tick={{ fill: "#64748b", fontSize: 10 }} tickLine={false} />
               <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
               <Tooltip
@@ -178,7 +178,7 @@ function TopPagesCard({ topPages }: { topPages: SiteTopPage[] }) {
                   );
                 }}
               />
-              <Bar dataKey="views" fill="var(--brand)" radius={[10, 10, 0, 0]} maxBarSize={48} />
+              <Bar dataKey="views" fill="var(--brand)" fillOpacity={0.72} radius={[8, 8, 0, 0]} maxBarSize={34} isAnimationActive animationDuration={650} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
@@ -196,7 +196,7 @@ function IssueBreakdownCard({ issues }: { issues: IssueBreakdownItem[] }) {
   const data = total > 0 ? issues : [{ name: "No issues", value: 1 }];
 
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)]">
+    <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">Issue mix</p>
       <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Crawl issue breakdown</h2>
       <div className="mt-4 h-56">

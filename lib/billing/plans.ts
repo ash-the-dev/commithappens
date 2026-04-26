@@ -11,14 +11,14 @@ export const BILLING_PLANS: Record<PlanKey, PlanEntitlements> = {
   situationship: {
     planKey: "situationship",
     label: "Situationship",
-    seoEnabled: false,
+    seoEnabled: true,
     maxSites: 1,
   },
   committed: {
     planKey: "committed",
     label: "Committed",
     seoEnabled: true,
-    maxSites: 5,
+    maxSites: 3,
   },
   unlimited: {
     planKey: "unlimited",

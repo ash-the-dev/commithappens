@@ -3,6 +3,7 @@ import Link from "next/link";
 import { InteractiveGridBackdrop } from "@/components/background/InteractiveGridBackdrop";
 import { WaveWordmark } from "@/components/brand/WaveWordmark";
 import { ThemePicker } from "@/components/theme/ThemePicker";
+import { BetaBadge } from "@/components/ui/BetaBadge";
 import { DEFAULT_DESCRIPTION, HOME_TITLE, SITE_NAME_DISPLAY } from "@/lib/seo/site-metadata";
 
 export const metadata: Metadata = {
@@ -61,6 +62,7 @@ export default function Home() {
             <div className="animate-float-soft">
               <WaveWordmark size="hero" />
             </div>
+            <BetaBadge />
             <div className="max-w-3xl space-y-5">
               <p className="text-xl font-semibold leading-snug tracking-tight text-white md:text-2xl">
                 Track website performance, not red flags.
@@ -78,7 +80,7 @@ export default function Home() {
                   href="/register"
                   className="u-shadow-brand-card inline-flex justify-center rounded-full bg-brand px-6 py-3 text-sm font-semibold text-black transition hover:bg-brand-muted"
                 >
-                  Run a Free Scan
+                  Start monitoring
                 </Link>
                 <Link
                   href="/how-it-works"

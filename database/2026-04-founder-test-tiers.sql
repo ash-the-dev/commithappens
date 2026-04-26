@@ -33,8 +33,8 @@ select
 from users u
 join (
   values
-    ('unsinkable.ash@gmail.com', 'committed', 5, true),
-    ('ash.morales0712@gmail.com', 'situationship', 1, false)
+    ('unsinkable.ash@gmail.com', 'committed', 3, true),
+    ('ash.morales0712@gmail.com', 'situationship', 1, true)
 ) as v(email, plan_key, max_sites, seo_enabled)
   on lower(u.email) = v.email
 on conflict (user_id)

@@ -1,61 +1,88 @@
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
-import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
-import { getBillingAccess } from "@/lib/billing/access";
-import { getUserSubscription } from "@/lib/db/subscriptions";
+import type { Metadata } from "next";
+import { LegalPageLayout, type LegalSection } from "@/components/legal/LegalPageLayout";
 
-export default async function BillingPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) redirect("/login");
+export const metadata: Metadata = {
+  title: "Billing & Refund Policy | Commit Happens",
+  description:
+    "Subscription, cancellation, billing, trial, and refund policies for Commit Happens.",
+  alternates: { canonical: "/billing" },
+};
 
-  const [subscription, billing] = await Promise.all([
-    getUserSubscription(session.user.id),
-    getBillingAccess(session.user.id, session.user.email),
-  ]);
+const sections: LegalSection[] = [
+  {
+    title: "Subscriptions",
+    body: [
+      "Commit Happens may offer free and paid plans.",
+      "Paid plans may include access to additional features such as more monitored sites, more crawl capacity, AI recommendations, uptime monitoring, and advanced insights.",
+    ],
+  },
+  {
+    title: "Billing",
+    body: [
+      "Paid subscriptions are billed according to the pricing and billing cycle shown at checkout.",
+      "Payments may be processed by third-party providers such as Stripe.",
+      "By subscribing, you authorize recurring charges unless you cancel before renewal.",
+    ],
+  },
+  {
+    title: "Trials",
+    body: [
+      "Commit Happens may offer free trials or introductory access.",
+      "If a trial requires payment information, billing may begin automatically when the trial ends unless you cancel before the renewal date.",
+    ],
+  },
+  {
+    title: "Cancellations",
+    body: [
+      "You may cancel your subscription according to the account or billing management options provided.",
+      "Cancellation stops future billing but does not automatically refund past payments.",
+    ],
+  },
+  {
+    title: "Refunds",
+    body: [
+      "Refunds are not guaranteed.",
+      "We may consider refund requests on a case-by-case basis, especially for billing errors or accidental renewals reported quickly.",
+      "We generally do not provide refunds for:",
+      [
+        "Forgetting to cancel",
+        "Not using the service",
+        "Dissatisfaction after significant usage",
+        "Downtime caused by third-party services",
+        "Results not matching expectations",
+        "Search rankings, traffic, or business outcomes",
+      ],
+    ],
+  },
+  {
+    title: "Plan Changes",
+    body: [
+      "If you upgrade or downgrade, feature access and billing may change based on the selected plan.",
+      "Some changes may take effect immediately, while others may apply at the next billing cycle depending on payment processor behavior.",
+    ],
+  },
+  {
+    title: "Failed Payments",
+    body: ["If payment fails, access to paid features may be limited, paused, or canceled."],
+  },
+  {
+    title: "Price Changes",
+    body: [
+      "We may update pricing or plan features over time. We will make reasonable efforts to communicate material changes.",
+    ],
+  },
+  {
+    title: "Contact",
+    body: ["Billing questions? Email: commithappens@gmail.com"],
+  },
+];
 
+export default function BillingPolicyPage() {
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-6 py-12">
-      <h1 className="text-3xl font-semibold text-white">Billing</h1>
-      <div className="rounded-3xl border border-white/20 bg-white/10 p-6 text-sm text-white/85 backdrop-blur-xl">
-        <p>
-          <span className="font-semibold">Plan:</span> {subscription?.planKey ?? "none"}
-        </p>
-        <p className="mt-2">
-          <span className="font-semibold">Status:</span> {subscription?.status ?? "none"}
-        </p>
-        <p className="mt-2">
-          <span className="font-semibold">Trial ends:</span> {subscription?.trialEndsAt ?? "n/a"}
-        </p>
-        <p className="mt-2">
-          <span className="font-semibold">Current period end:</span> {subscription?.currentPeriodEnd ?? "n/a"}
-        </p>
-        <p className="mt-2">
-          <span className="font-semibold">SEO enabled:</span> {subscription?.seoEnabled ? "yes" : "no"}
-        </p>
-        <p className="mt-2">
-          <span className="font-semibold">Max sites:</span>{" "}
-          {billing.maxSites >= 999_999 ? "Unlimited" : billing.maxSites}
-        </p>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {subscription?.stripeCustomerId ? (
-            <CustomerPortalButton />
-          ) : (
-            <Link
-              href="/pricing"
-              className="rounded-full bg-brand px-4 py-2 text-xs font-semibold text-black transition hover:bg-brand-muted"
-            >
-              View pricing
-            </Link>
-          )}
-        </div>
-        {!subscription?.stripeCustomerId ? (
-          <p className="mt-3 text-xs text-white/60">
-            No billing profile yet. Pick a plan first, then billing management will unlock here.
-          </p>
-        ) : null}
-      </div>
-    </main>
+    <LegalPageLayout
+      title="Billing & Refund Policy"
+      subtitle="This Billing & Refund Policy explains how subscriptions, payments, renewals, cancellations, and refunds work for Commit Happens. We like clean billing. Surprise charges are gross."
+      sections={sections}
+    />
   );
 }

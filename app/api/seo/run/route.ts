@@ -146,15 +146,18 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (billing.maxSeoCrawlsPerSitePerWeek != null) {
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const windowDays = billing.accountKind === "situationship" ? 30 : 7;
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
     const recentRuns = await countSeoCrawlRunsForSiteSince(site.id, since);
     if (recentRuns >= billing.maxSeoCrawlsPerSitePerWeek) {
       return json(
         {
           ok: false,
-          code: "WEEKLY_CRAWL_LIMIT_REACHED",
+          code: billing.accountKind === "situationship" ? "MONTHLY_CRAWL_LIMIT_REACHED" : "WEEKLY_CRAWL_LIMIT_REACHED",
           message:
-            "Committed includes one SEO crawl with recommendations per site each week. All In removes the leash.",
+            billing.accountKind === "situationship"
+              ? "Situationship includes one SEO crawl with AI recommendations each month. Tiny leash, still useful."
+              : "Committed includes one SEO crawl with recommendations per site each week. All In keeps that weekly rhythm across more sites.",
         },
         429,
       );
