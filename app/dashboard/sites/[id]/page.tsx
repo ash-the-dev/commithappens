@@ -66,14 +66,14 @@ import {
   type CommandCenterSummaryCard,
   type CommandCenterTab,
 } from "@/components/dashboard/SiteCommandCenterDashboard";
-import { SocialAttentionSection } from "@/components/dashboard/SocialAttentionSection";
+import { ReputationPulsePanel } from "@/components/dashboard/ReputationPulsePanel";
 import { ReputationPulseTeaser } from "@/components/dashboard/ReputationPulseTeaser";
 import {
   SMART_MOCK_ATTENTION_ISSUES,
   SMART_MOCK_SOCIAL_MENTIONS,
   shouldUseSmartMock,
 } from "@/lib/dashboard/smart-mock";
-import { getSocialMentionsNeedingAttention } from "@/lib/social/socialMentionService";
+import { getSocialMentionsNeedingAttention, getSocialWatchTermsForSite } from "@/lib/social/socialMentionService";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -133,6 +133,7 @@ export default async function SiteDetailPage({ params }: Props) {
     crawlRunHistory,
     onPageForReport,
     socialMentionsNeedingAttention,
+    socialWatchTerms,
   ] = await Promise.all([
     getSiteAnalytics(site.id),
     getSiteLiveActivity(site.id, 25),
@@ -143,6 +144,7 @@ export default async function SiteDetailPage({ params }: Props) {
     getSeoCrawlRunHistory(site.id, 18).catch(() => []),
     getSeoCrawlOnPageBreakdown(site.id).catch(() => null),
     canUseReputationPulse ? getSocialMentionsNeedingAttention(site.id, 5).catch(() => []) : Promise.resolve([]),
+    canUseReputationPulse ? getSocialWatchTermsForSite(site.id).catch(() => []) : Promise.resolve([]),
   ]);
   const uptimeCardHistory = uptimeHistory.slice(0, 50);
   const siteTrendsInitial = buildSiteTrendsPayload(crawlRunHistory, uptimeHistory);
@@ -241,7 +243,7 @@ export default async function SiteDetailPage({ params }: Props) {
   const attentionItems = Array.from(
     new Set(
       useSmartMock
-        ? SMART_MOCK_ATTENTION_ISSUES.map((issue) => `${issue.category}: ${issue.title}`)
+        ? SMART_MOCK_ATTENTION_ISSUES.filter((issue) => issue.category === "SEO").map((issue) => `${issue.category}: ${issue.title}`)
         : topCrawlIssues.map((issue) => {
             const subject = issue.url || issue.title || site.primary_domain;
             const priority = issue.priorityLabel || issue.issue_severity || "Review";
@@ -252,17 +254,21 @@ export default async function SiteDetailPage({ params }: Props) {
   ).slice(0, 4);
 
   const summaryCards: CommandCenterSummaryCard[] = [
-    {
-      id: "seo-health",
-      title: "SEO health",
-      value: crawlSnapshot ? `${Math.round(crawlSnapshot.health_score)}` : "No crawl",
-      caption: crawlSnapshot
-        ? `${crawlSnapshot.pages_crawled.toLocaleString("en-US")} pages in latest stored crawl`
-        : "Run a crawl and let’s get something to judge.",
-      badge: crawlSnapshot ? compactDate(crawlSnapshot.created_at) : "Waiting",
-      targetTab: "seo-crawl",
-      accent: "cyan",
-    },
+    ...(seoEnabled
+      ? [
+          {
+            id: "seo-health",
+            title: "SEO Crawl",
+            value: crawlSnapshot ? `${Math.round(crawlSnapshot.health_score)}` : "No crawl",
+            caption: crawlSnapshot
+              ? `${crawlSnapshot.pages_crawled.toLocaleString("en-US")} pages, ${crawlIssueTotal.toLocaleString("en-US")} issues in latest crawl`
+              : "Run a crawl and let’s get something to judge.",
+            badge: crawlSnapshot ? compactDate(crawlSnapshot.created_at) : "Waiting",
+            targetTab: "seo-crawl",
+            accent: "cyan" as const,
+          },
+        ]
+      : []),
     {
       id: "traffic",
       title: "Traffic",
@@ -286,38 +292,19 @@ export default async function SiteDetailPage({ params }: Props) {
       targetTab: "performance",
       accent: "violet",
     },
-    {
-      id: "issues",
-      title: "Issues",
-      value: crawlIssueTotal.toLocaleString("en-US"),
-      caption:
-        crawlIssueTotal > 0
-          ? "Crawl warnings, notices, and criticals that need triage."
-          : "No crawl issues stored yet. Suspiciously empty.",
-      badge: "Alert",
-      targetTab: canUseIntelligence ? "issues" : "seo-crawl",
-      accent: "amber",
-    },
-    {
-      id: "changes",
-      title: "Recent change",
-      value: topChange?.change_type ?? "None",
-      caption: topChange ? "Latest impact record is ready for judgment." : "No recent deploy notes. Bold strategy.",
-      badge: `${changeImpacts.length} records`,
-      targetTab: canUseIntelligence ? "comparison" : "traffic",
-      accent: "pink",
-    },
-    {
-      id: "crawl-status",
-      title: "Crawl status",
-      value: crawlSnapshot ? compactDate(crawlSnapshot.created_at) : "Not run",
-      caption: apifyWorkerConfigured
-        ? `Apify worker is connected. Last SEO crawl: ${lastSeoLabel}.`
-        : "Stored reports can refresh, but new crawls need the worker connected.",
-      badge: apifyWorkerConfigured ? "Worker ready" : "Worker off",
-      targetTab: "seo-crawl",
-      accent: "slate",
-    },
+    ...(canUseIntelligence
+      ? [
+          {
+            id: "changes",
+            title: "Recent change",
+            value: topChange?.change_type ?? "None",
+            caption: topChange ? "Latest impact record is ready for judgment." : "No recent deploy notes. Bold strategy.",
+            badge: `${changeImpacts.length} records`,
+            targetTab: "changes",
+            accent: "pink" as const,
+          },
+        ]
+      : []),
   ];
   const issueBreakdown = [
     { name: "Critical", value: crawlSnapshot?.critical_count ?? 0 },
@@ -327,16 +314,17 @@ export default async function SiteDetailPage({ params }: Props) {
   const detailTabs: CommandCenterTab[] = [
     { id: "traffic", label: "Traffic" },
     { id: "performance", label: "Performance" },
-    { id: "seo-crawl", label: "SEO Crawl" },
+    ...(seoEnabled ? [{ id: "seo-crawl", label: "SEO Crawl" }] : []),
+    ...(canUseReputationPulse || showReputationPulseTeaser ? [{ id: "reputation", label: "Reputation Pulse" }] : []),
     ...(canUseIntelligence
       ? [
-          { id: "issues", label: "Issues" },
-          { id: "comparison", label: "Comparison" },
-          { id: "actions", label: "Actions" },
-          { id: "anomalies", label: "Anomalies" },
+          { id: "site-signals", label: "Site Signals" },
+          { id: "changes", label: "Changes" },
+          { id: "action-queue", label: "Action Queue" },
+          { id: "alerts", label: "Alerts" },
         ]
       : []),
-    { id: "install", label: "Install" },
+    { id: "tracker-setup", label: "Tracker Setup" },
   ];
   const headerInfoBtn = "h-4 w-4 min-h-4 min-w-4 border-white/25 bg-white/10 text-white/80";
 
@@ -363,13 +351,15 @@ export default async function SiteDetailPage({ params }: Props) {
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
               Dashboard loaded: <span className="font-semibold text-white">{dashboardLoadedLabel}</span>
             </span>
-            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
-              <span className="inline-flex items-center gap-1">
-                Last SEO
-                <InfoTooltip buttonClassName={headerInfoBtn} {...getMetricExplanation("seo_crawl_section")} />
-                : <span className="font-semibold text-white">{lastSeoLabel}</span>
+            {seoEnabled ? (
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
+                <span className="inline-flex items-center gap-1">
+                  Last SEO
+                  <InfoTooltip buttonClassName={headerInfoBtn} {...getMetricExplanation("seo_crawl_section")} />
+                  : <span className="font-semibold text-white">{lastSeoLabel}</span>
+                </span>
               </span>
-            </span>
+            ) : null}
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
               <span className="inline-flex items-center gap-1">
                 Last uptime
@@ -397,16 +387,6 @@ export default async function SiteDetailPage({ params }: Props) {
         activityItems={liveActivity}
         tabs={detailTabs}
       >
-        {canUseReputationPulse ? (
-          <SocialAttentionSection
-            mentions={socialAttentionMentions}
-            smartMockIssues={useSmartMock ? SMART_MOCK_ATTENTION_ISSUES : undefined}
-            isSmartMock={useSmartMock}
-          />
-        ) : showReputationPulseTeaser ? (
-          <ReputationPulseTeaser />
-        ) : null}
-
         <DashboardSection
           kicker="Reality check"
           title="Traffic and engagement"
@@ -426,21 +406,37 @@ export default async function SiteDetailPage({ params }: Props) {
             snapshot={uptimeSnapshot}
             history={uptimeCardHistory}
           />
-          {billing.accountKind !== "free" ? (
-            <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
-          ) : null}
         </div>
 
-        <div className="space-y-6">
-          <SeoCrawlIntelligenceSection
+        {seoEnabled ? (
+          <div className="space-y-6">
+            <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
+            <SeoCrawlIntelligenceSection
+              siteId={site.id}
+              seoEnabled={seoEnabled}
+              crawlUnavailableReason={crawlUnavailableReason}
+              latestRun={crawlSnapshot}
+              topIssues={topCrawlIssues}
+            />
+            {canUseIntelligence ? (
+              <ResponseCodeDashboardCard siteId={site.id} onPageBreakdown={onPageForReport} />
+            ) : null}
+            {canUseIntelligence ? <AiSeoRecommendationsCard siteId={site.id} /> : null}
+          </div>
+        ) : null}
+
+        {canUseReputationPulse ? (
+          <ReputationPulsePanel
             siteId={site.id}
-            seoEnabled={seoEnabled}
-            crawlUnavailableReason={crawlUnavailableReason}
-            latestRun={crawlSnapshot}
-            topIssues={topCrawlIssues}
+            watchTerms={socialWatchTerms}
+            watchTermLimit={billing.reputationWatchTermLimit}
+            mentions={socialAttentionMentions}
+            smartMockIssues={useSmartMock ? SMART_MOCK_ATTENTION_ISSUES : undefined}
+            isSmartMock={useSmartMock}
           />
-          {canUseIntelligence && seoEnabled ? <AiSeoRecommendationsCard siteId={site.id} /> : null}
-        </div>
+        ) : showReputationPulseTeaser ? (
+          <ReputationPulseTeaser />
+        ) : null}
 
         {canUseIntelligence ? (
           <div className="space-y-6">
@@ -452,20 +448,6 @@ export default async function SiteDetailPage({ params }: Props) {
 
         {canUseIntelligence ? (
           <div className="space-y-6">
-            {seoEnabled ? (
-              <ResponseCodeDashboardCard siteId={site.id} onPageBreakdown={onPageForReport} />
-            ) : (
-              <DashboardSection
-                kicker="SEO intelligence"
-                title="SEO comparison is not enabled yet"
-                subtitle="The dashboard will show response-code comparison, crawl deltas, and action playbooks here as soon as SEO crawling is enabled for this account."
-              >
-                <p className="text-sm text-slate-800">
-                  Your traffic, probe samples, and latest crawl snapshot still stay visible above. This panel is reserved
-                  for the deeper response-code report.
-                </p>
-              </DashboardSection>
-            )}
             <ChangeImpactCard impacts={changeImpacts} />
             <ChangeImpactNarrativeCard narrative={changeNarrative} />
           </div>

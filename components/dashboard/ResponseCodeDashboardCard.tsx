@@ -425,10 +425,10 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-cyan-200/30 bg-linear-to-br from-slate-900/95 via-slate-900/92 to-indigo-950/90 p-5 shadow-2xl">
             <p className="text-xs font-semibold uppercase tracking-widest text-cyan-200">Crawl in progress</p>
-              <h4 className="mt-2 text-lg font-semibold text-white">Starting the background crawl</h4>
+            <h4 className="mt-2 text-lg font-semibold text-white">Starting the background crawl</h4>
             <p className="mt-2 text-base font-semibold text-cyan-100">{RUNNING_LINES[runningLineIdx]}</p>
             <p className="mt-2 text-sm text-slate-200">
-              The crawl runs in the background now. Refresh stats in a bit and the webhook will bring the goods.
+              The crawl runs in the background now. Refresh stats in a bit and the report will update.
             </p>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-300">
               <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 font-semibold uppercase tracking-widest">
@@ -446,7 +446,7 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
               <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-cyan-300" />
               <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-indigo-300 [animation-delay:150ms]" />
               <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-fuchsia-300 [animation-delay:300ms]" />
-              <span>No local crawler nonsense. This starts the Apify worker.</span>
+              <span>The crawl worker is checking this site.</span>
             </div>
           </div>
         </div>
@@ -458,11 +458,11 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">SEO crawl details</p>
               <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">{comparison.overview.headline}</h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-                {hasData ? comparison.overview.summary : "No crawl data yet. Run or import a crawl to populate this report."}
+                {hasData ? comparison.overview.summary : "No crawl data yet. Run SEO Crawl to populate this report."}
               </p>
               {!hasData ? (
                 <p className="mt-2 text-xs text-amber-700">
-                  If a crawl just succeeded but this is still empty, verify that your run used the same site ID this page is querying.
+                  If a crawl just finished but this is still empty, refresh stats once the report has saved.
                 </p>
               ) : null}
               {comparison.hasPrevious ? (
@@ -476,10 +476,6 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
               )}
             </div>
             <div className="flex flex-col items-end gap-2">
-              <p className="max-w-xs text-right text-xs leading-relaxed text-slate-500">
-                Use the page header action for the main run/refresh flow. This tab has a secondary crawl trigger for
-                the detailed response-code report.
-              </p>
               <button
                 type="button"
                 onClick={() => void runCrawl()}

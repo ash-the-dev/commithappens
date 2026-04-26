@@ -57,71 +57,72 @@ export default function Home() {
       </header>
       <main className="relative flex flex-1 flex-col">
         <InteractiveGridBackdrop />
-        <div className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-10 px-6 py-14 md:py-20">
-          <div className="space-y-7">
+        <div className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-6 px-4 py-10 sm:px-6 md:gap-10 md:py-20">
+          <div className="space-y-5 md:space-y-7">
             <div className="animate-float-soft">
               <WaveWordmark size="hero" />
             </div>
             <BetaBadge />
-            <div className="max-w-3xl space-y-5">
-              <p className="text-xl font-semibold leading-snug tracking-tight text-white md:text-2xl">
-                Uptime, SEO issues, and brand mentions—prioritized and explained in plain English.
+            <div className="max-w-3xl space-y-4 md:space-y-5">
+              <p className="text-base font-semibold leading-snug tracking-tight text-white sm:text-lg md:text-2xl">
+                Analytics, uptime, SEO issues, and brand mentions—prioritized and explained in plain English.
               </p>
-              <div className="space-y-3">
-                <h1 className="text-4xl font-black leading-[0.95] tracking-[-0.04em] text-white sm:text-5xl md:text-6xl">
+              <div className="space-y-2.5 md:space-y-3">
+                <h1 className="text-[2rem] font-black leading-[1.08] tracking-[-0.04em] text-white sm:text-[2.35rem] md:text-6xl md:leading-[0.95]">
                   Most tools give you data. Commit Happens gives you decisions.
                 </h1>
-                <p className="max-w-2xl text-lg leading-relaxed text-white/80 md:text-xl">
-                  Know what&apos;s broken, what matters, and what to fix first.
+                <p className="max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base md:text-xl">
+                  Know what&rsquo;s broken, what matters, and what to fix first—without digging through dashboards.
                 </p>
               </div>
               <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center">
                 <Link
                   href="/register"
-                  className="u-shadow-brand-card inline-flex justify-center rounded-full bg-brand px-6 py-3 text-sm font-semibold text-black transition hover:bg-brand-muted"
+                  className="u-shadow-brand-card inline-flex justify-center rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-brand-muted sm:px-6 sm:py-3"
                 >
-                  Show me what broke
+                  Start catching issues
                 </Link>
                 <Link
                   href="/how-it-works"
-                  className="inline-flex justify-center rounded-full border border-white/25 px-6 py-3 text-sm font-semibold text-white/90 transition hover:border-brand hover:text-brand"
+                  className="inline-flex justify-center rounded-full border border-white/25 px-5 py-2.5 text-sm font-semibold text-white/90 transition hover:border-brand hover:text-brand sm:px-6 sm:py-3"
                 >
-                  Show me what broke
+                  Show me the demo
                 </Link>
               </div>
               <p className="text-sm font-semibold text-white/65">
-                Quick, guided setup. No technical knowledge required.
+                Setup takes about a minute. We&rsquo;ll walk you through it.
               </p>
             </div>
-            <div className="ui-surface-contrast hero-result-card max-w-3xl animate-float-soft p-5 sm:p-6">
+            <div className="ui-surface-contrast hero-result-card max-w-3xl animate-float-soft p-4 sm:p-5 md:p-6">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-fuchsia-700">
                 Your site&apos;s warning lights, translated
               </p>
-              <div className="mt-4 space-y-3 text-base font-semibold text-slate-900">
-                <p className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/75 p-3">
+              <p className="mt-2 text-sm font-semibold text-slate-700">Here&rsquo;s what we&rsquo;d fix first:</p>
+              <div className="mt-3 space-y-2.5 text-sm font-semibold text-slate-900 sm:mt-4 sm:space-y-3 sm:text-base">
+                <p className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white/75 p-2.5 sm:gap-3 sm:p-3">
+                  <span aria-hidden>📉</span>
+                  <span>Analytics spotted a conversion dip <span className="text-rose-600">on /pricing</span></span>
+                </p>
+                <p className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white/75 p-2.5 sm:gap-3 sm:p-3">
+                  <span aria-hidden>🗣️</span>
+                  <span>Reputation Pulse found a mention that needs a calm response</span>
+                </p>
+                <p className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white/75 p-2.5 sm:gap-3 sm:p-3">
                   <span aria-hidden>🚨</span>
                   <span>12 pages are broken <span className="text-slate-500">(404 errors)</span></span>
-                </p>
-                <p className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/75 p-3">
-                  <span aria-hidden>📉</span>
-                  <span>Your health score dropped <span className="text-rose-600">18%</span></span>
-                </p>
-                <p className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/75 p-3">
-                  <span aria-hidden>🧵</span>
-                  <span>Redirect chain slowing down <span className="font-mono text-sm text-cyan-700">/pricing</span></span>
                 </p>
               </div>
               <Link
                 href="/how-it-works"
                 className="mt-4 inline-flex text-sm font-black text-fuchsia-700 transition hover:text-fuchsia-900"
               >
-                Fix this in 3 steps
+                Fix this in 3 quick steps
               </Link>
             </div>
 
             <div
               id="how-it-works"
-              className="rounded-2xl border border-white/20 bg-white/8 p-4 backdrop-blur-md"
+              className="rounded-2xl border border-white/20 bg-white/8 p-3.5 backdrop-blur-md sm:p-4"
             >
               <h2 className="text-lg font-black tracking-tight text-white">How Commit Happens Works</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -129,17 +130,17 @@ export default function Home() {
                   [
                     "1",
                     "Add your site",
-                    "Paste your URL and install a tiny script — we'll guide you in under a minute. No coding experience needed.",
+                    "Paste your URL and install a tiny script — we’ll guide you in under a minute. No coding experience needed.",
                   ],
                   [
                     "2",
                     "We scan everything",
-                    "Uptime, SEO issues, broken pages, performance, and brand mentions.",
+                    "Analytics, uptime, SEO issues, broken pages, performance, and brand mentions.",
                   ],
                   [
                     "3",
                     "We rank what matters",
-                    "We don't dump data. We show what needs attention first.",
+                    "We don’t dump data on you. We show what actually needs attention first.",
                   ],
                   [
                     "4",

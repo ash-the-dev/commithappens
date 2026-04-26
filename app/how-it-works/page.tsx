@@ -88,7 +88,7 @@ export default function HowItWorksPage() {
               Plan boundaries
             </p>
             <h2 className="mt-2 text-3xl font-black tracking-tight text-white">
-              No mystery meat features.
+              No guesswork. No rabbit holes.
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-white/65">
               Each plan shows what it actually gets. Paid tiers unlock only what belongs there.

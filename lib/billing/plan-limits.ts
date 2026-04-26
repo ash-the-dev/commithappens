@@ -124,7 +124,7 @@ export function getUserPlanLimits(plan: string): UserPlanLimits {
   }
   if (p === "unlimited") {
     return {
-      maxWebsites: 25,
+      maxWebsites: 10,
       canUseSEO: true,
       canUseIntelligence: true,
       ...getReputationPulseLimits("unlimited"),

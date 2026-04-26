@@ -78,7 +78,7 @@ The app supports beta paid plans:
 
 - `situationship` -> 1 monitored site, monthly crawl, AI recommendations, analytics
 - `committed` -> SEO + monitoring + analysis, up to 3 sites
-- `unlimited` -> up to 25 sites with weekly crawls per site
+- `unlimited` -> up to 10 sites with weekly crawls per site
 
 Required env vars:
 

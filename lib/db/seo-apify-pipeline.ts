@@ -4,6 +4,7 @@ import { buildResponseCodeReportFromParsed } from "@/lib/seo/response-codes";
 import { parseResponseCodesFromNormalizedRows } from "@/lib/seo/response-codes";
 import type { NormalizedCrawlRow } from "@/lib/seo/apify/normalize";
 import { buildSeoCrawlRunSummary, classifySeoCrawlPage } from "@/lib/seo/crawl/crawl-classification";
+import { urlsBelongToSameSite } from "@/lib/seo/crawl-request-security";
 
 const ensured = new Set<string>();
 
@@ -361,6 +362,62 @@ function toExistingRows(results: NormalizedApifySeoResults): Array<{
   });
 }
 
+function pageBelongsToCrawlDomain(url: string | null | undefined, domain: string): boolean {
+  if (!url) return false;
+  try {
+    return urlsBelongToSameSite(new URL(url), domain);
+  } catch {
+    return false;
+  }
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function filterResultsToCrawlDomain(
+  results: NormalizedApifySeoResults,
+  domain: string,
+): NormalizedApifySeoResults {
+  const pages = results.pages.filter((page) => pageBelongsToCrawlDomain(page.url, domain));
+  const pageUrls = new Set(pages.map((page) => page.url));
+  const issues = results.issues.filter((issue) => !issue.url || pageUrls.has(issue.url));
+  const topIssues = results.topIssues.filter((issue) => !issue.url || pageUrls.has(issue.url));
+
+  return {
+    pages,
+    issues,
+    topIssues,
+    summary: {
+      ...results.summary,
+      totalPages: pages.length,
+      scannedPages: pages.length,
+      successfulPages: pages.filter((page) => page.statusCode != null && page.statusCode >= 200 && page.statusCode < 300).length,
+      errorPages: pages.filter((page) => page.statusCode != null && page.statusCode >= 400).length,
+      redirectPages: pages.filter((page) => page.statusCode != null && page.statusCode >= 300 && page.statusCode < 400).length,
+      averageTitleLength: average(pages.flatMap((page) => (page.titleLength == null ? [] : [page.titleLength]))),
+      averageDescriptionLength: average(
+        pages.flatMap((page) => (page.metaDescriptionLength == null ? [] : [page.metaDescriptionLength])),
+      ),
+      missingTitleCount: issues.filter((issue) => issue.type === "missing_title").length,
+      missingDescriptionCount: issues.filter((issue) => issue.type === "missing_meta_description").length,
+      missingH1Count: issues.filter((issue) => issue.type === "missing_h1").length,
+      multipleH1Count: issues.filter((issue) => issue.type === "multiple_h1").length,
+      internalLinksCount: pages.reduce((sum, page) => sum + page.internalLinks.length, 0),
+      externalLinksCount: pages.reduce((sum, page) => sum + page.externalLinks.length, 0),
+      criticalIssues: issues.filter((issue) => issue.severity === "critical").length,
+      highIssues: issues.filter((issue) => issue.severity === "high").length,
+      mediumIssues: issues.filter((issue) => issue.severity === "medium").length,
+      lowIssues: issues.filter((issue) => issue.severity === "low").length,
+      healthyPages: Math.max(0, pages.length - new Set(issues.flatMap((issue) => (issue.url ? [issue.url] : []))).size),
+      duplicateMetaCount: issues.filter((issue) => issue.type === "duplicate_meta_description").length,
+      duplicateDescriptionCount: issues.filter((issue) => issue.type === "duplicate_meta_description").length,
+      duplicateTitleCount: issues.filter((issue) => issue.type === "duplicate_title").length,
+    },
+  };
+}
+
 export async function persistApifySeoResults(input: {
   crawlRunId: string;
   siteId: string;
@@ -369,6 +426,12 @@ export async function persistApifySeoResults(input: {
   results: NormalizedApifySeoResults;
 }) {
   await ensureSeoPipelineTables();
+  const filteredResults = filterResultsToCrawlDomain(input.results, input.domain);
+  if (filteredResults.pages.length === 0 && input.results.pages.length > 0) {
+    const firstUrl = input.results.pages[0]?.url ?? "unknown";
+    throw new Error(`Crawl dataset did not contain pages for ${input.domain}. First returned URL: ${firstUrl}`);
+  }
+
   const pool = getPool();
   const client = await pool.connect();
   try {
@@ -378,7 +441,7 @@ export async function persistApifySeoResults(input: {
     await client.query(`DELETE FROM seo_issues WHERE crawl_run_id = $1::uuid`, [input.crawlRunId]);
     await client.query(`DELETE FROM seo_site_summaries WHERE crawl_run_id = $1::uuid`, [input.crawlRunId]);
 
-    for (const page of input.results.pages) {
+    for (const page of filteredResults.pages) {
       await client.query(
         `INSERT INTO seo_page_reports (
           crawl_run_id, site_id, url, status_code, title, title_length, meta_description,
@@ -414,7 +477,7 @@ export async function persistApifySeoResults(input: {
       );
     }
 
-    for (const issue of input.results.issues) {
+    for (const issue of filteredResults.issues) {
       await client.query(
         `INSERT INTO seo_issues (
           crawl_run_id, site_id, url, type, severity, title, description, recommendation,
@@ -440,7 +503,7 @@ export async function persistApifySeoResults(input: {
       );
     }
 
-    const existingRows = toExistingRows(input.results);
+    const existingRows = toExistingRows(filteredResults);
     for (const { row, cls } of existingRows) {
       await client.query(
         `INSERT INTO seo_crawl_pages (
@@ -464,10 +527,10 @@ export async function persistApifySeoResults(input: {
     }
 
     const summaryCounts = buildSeoCrawlRunSummary(existingRows.map((item) => item.cls));
-    const critical = input.results.issues.filter((issue) => issue.severity === "critical").length;
-    const high = input.results.issues.filter((issue) => issue.severity === "high").length;
-    const medium = input.results.issues.filter((issue) => issue.severity === "medium").length;
-    const low = input.results.issues.filter((issue) => issue.severity === "low").length;
+    const critical = filteredResults.issues.filter((issue) => issue.severity === "critical").length;
+    const high = filteredResults.issues.filter((issue) => issue.severity === "high").length;
+    const medium = filteredResults.issues.filter((issue) => issue.severity === "medium").length;
+    const low = filteredResults.issues.filter((issue) => issue.severity === "low").length;
     await client.query(
       `INSERT INTO seo_site_summaries (
         crawl_run_id, site_id, domain, score, total_pages, successful_pages, error_pages,
@@ -477,15 +540,15 @@ export async function persistApifySeoResults(input: {
         input.crawlRunId,
         input.siteId,
         input.domain,
-        input.results.summary.score,
-        input.results.summary.totalPages,
-        input.results.summary.successfulPages,
-        input.results.summary.errorPages,
+        filteredResults.summary.score,
+        filteredResults.summary.totalPages,
+        filteredResults.summary.successfulPages,
+        filteredResults.summary.errorPages,
         critical,
         high,
         medium,
         low,
-        JSON.stringify(input.results.summary),
+        JSON.stringify(filteredResults.summary),
       ],
     );
 
@@ -516,13 +579,13 @@ export async function persistApifySeoResults(input: {
       [
         input.crawlRunId,
         input.providerDatasetId,
-        input.results.summary.scannedPages,
+        filteredResults.summary.scannedPages,
         summaryCounts.healthy_count,
         summaryCounts.notice_count,
         summaryCounts.warning_count,
         summaryCounts.critical_count,
-        input.results.summary.score,
-        JSON.stringify(input.results.summary),
+        filteredResults.summary.score,
+        JSON.stringify(filteredResults.summary),
       ],
     );
     await client.query("COMMIT");

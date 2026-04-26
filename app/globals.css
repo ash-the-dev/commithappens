@@ -88,6 +88,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  font-size: clamp(14px, 1.5vw, 16px);
+}
+
 body {
   background:
     linear-gradient(180deg, #0b1224 0%, #050816 52%, #020617 100%);

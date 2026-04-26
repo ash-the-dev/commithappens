@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-type TabKey = "traffic" | "seo" | "recommendations";
+type TabKey = "traffic" | "seo" | "reputation" | "recommendations";
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "traffic", label: "Traffic" },
   { key: "seo", label: "SEO issues" },
+  { key: "reputation", label: "Reputation Pulse" },
   { key: "recommendations", label: "Fix queue" },
 ];
 
@@ -34,7 +35,7 @@ function DonutChart() {
   return (
     <div className="relative mx-auto h-36 w-36">
       <div
-        className="absolute inset-0 rounded-full"
+        className="absolute inset-0 animate-[spin_4.5s_ease-in-out_infinite] rounded-full"
         style={{
           background:
             "conic-gradient(#f679d0 0deg 212deg, #22d3ee 212deg 292deg, #a855f7 292deg 336deg, rgba(255,255,255,0.14) 336deg 360deg)",
@@ -76,11 +77,18 @@ function TrafficPanel() {
               <stop offset="0%" stopColor="#f679d0" stopOpacity="0.28" />
               <stop offset="100%" stopColor="#f679d0" stopOpacity="0" />
             </linearGradient>
+            <clipPath id="trafficReveal">
+              <rect x="0" y="0" width="0" height="100">
+                <animate attributeName="width" values="0;100;100" dur="4s" repeatCount="indefinite" />
+              </rect>
+            </clipPath>
           </defs>
           {[20, 40, 60, 80].map((y) => (
             <line key={y} x1="0" x2="100" y1={y} y2={y} stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
           ))}
-          <polygon points={`0,100 ${points} 100,100`} fill="url(#trafficFill)" />
+          <g clipPath="url(#trafficReveal)">
+            <polygon points={`0,100 ${points} 100,100`} fill="url(#trafficFill)" />
+          </g>
           <polyline
             points={points}
             fill="none"
@@ -88,12 +96,34 @@ function TrafficPanel() {
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth="3"
+            pathLength="1"
+            strokeDasharray="1"
+            strokeDashoffset="1"
             className="drop-shadow-[0_0_12px_rgba(246,121,208,0.65)]"
-          />
+          >
+            <animate attributeName="stroke-dashoffset" values="1;0;0" dur="4s" repeatCount="indefinite" />
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              values="0 10;0 0;0 0"
+              dur="4s"
+              repeatCount="indefinite"
+            />
+          </polyline>
           {trafficPoints.map((value, index) => {
             const x = (index / (trafficPoints.length - 1)) * 100;
             const y = 100 - value;
-            return <circle key={`${value}-${index}`} cx={x} cy={y} r="2" fill="#f8a8e6" />;
+            return (
+              <circle key={`${value}-${index}`} cx={x} cy={y} r="2" fill="#f8a8e6" opacity="0">
+                <animate
+                  attributeName="opacity"
+                  values="0;1;1"
+                  begin={`${0.2 + index * 0.12}s`}
+                  dur="4s"
+                  repeatCount="indefinite"
+                />
+              </circle>
+            );
           })}
         </svg>
       </div>
@@ -139,6 +169,40 @@ function SeoPanel() {
             <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-brand">{level}</p>
             <p className="mt-1 font-semibold text-white">{title}</p>
             <p className="mt-1 text-sm leading-relaxed text-white/58">{explanation}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReputationPanel() {
+  return (
+    <div className="grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="rounded-2xl border border-rose-300/30 bg-rose-400/10 p-4 shadow-[0_18px_60px_-42px_rgba(251,113,133,0.9)]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-rose-200">Reputation scan running</p>
+          <span className="rounded-full border border-rose-200/30 bg-rose-200/10 px-2 py-1 text-xs font-bold text-rose-100">
+            Negative sentiment
+          </span>
+        </div>
+        <p className="mt-3 text-lg font-black text-white">Someone mentioned your brand</p>
+        <p className="mt-2 text-sm leading-relaxed text-white/70">
+          A public mention may create trust concerns if left unanswered.
+        </p>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full w-3/4 animate-pulse rounded-full bg-linear-to-r from-rose-300 via-brand to-cyan-300" />
+        </div>
+      </div>
+      <div className="space-y-3">
+        {[
+          ["What matters", "This is visible, brand-related, and worth handling before it turns into support confetti."],
+          ["Suggested response", "Review the source and respond with a clear, calm clarification."],
+          ["Status", "Ranked above low-impact praise, because trust problems have elbows."],
+        ].map(([label, text]) => (
+          <div key={label} className="rounded-2xl border border-white/10 bg-white/7 p-4">
+            <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-brand">{label}</p>
+            <p className="mt-1 text-sm text-white/74">{text}</p>
           </div>
         ))}
       </div>
@@ -300,14 +364,15 @@ export function HowItWorksDemo({ badge = "Most popular" }: { badge?: string }) {
         <div className="relative z-10 mt-5">
           {activeTab === "traffic" ? <TrafficPanel /> : null}
           {activeTab === "seo" ? <SeoPanel /> : null}
+          {activeTab === "reputation" ? <ReputationPanel /> : null}
           {activeTab === "recommendations" ? <RecommendationsPanel /> : null}
         </div>
 
         <Link
-          href="/pricing"
+          href="/register"
           className="relative z-10 mt-5 inline-flex w-full justify-center rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-brand-muted"
         >
-          Start with Committed
+          Sign up now
         </Link>
       </div>
     </section>

@@ -313,18 +313,12 @@ export function SiteCommandCenterDashboard({
         ))}
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-3">
-        <HealthTrendCard trends={trends} />
-        <AttentionCard items={attentionItems} />
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-3">
+      <section className="grid gap-5 lg:grid-cols-2">
         <TopPagesCard topPages={topPages} />
-        <IssueBreakdownCard issues={issueBreakdown} />
         <CompactActivityCard items={activityItems} />
       </section>
 
-      <section id="details" className="rounded-3xl border border-white/15 bg-white/8 p-2 shadow-[0_24px_90px_-50px_rgba(0,0,0,0.65)] backdrop-blur">
+      <section id="details" className="rounded-3xl border border-slate-200/80 bg-white/95 p-2 shadow-[0_24px_90px_-52px_rgba(15,23,42,0.68)] backdrop-blur">
         <div className="flex gap-2 overflow-x-auto p-2">
           {tabs.map((tab) => (
             <button
@@ -333,8 +327,8 @@ export function SiteCommandCenterDashboard({
               onClick={() => activateTab(tab.id, true)}
               className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
                 activeTab === tab.id
-                  ? "border-cyan-200 bg-white text-slate-950 shadow-sm"
-                  : "border-white/15 bg-white/10 text-white/72 hover:bg-white/16 hover:text-white"
+                  ? "border-cyan-200 bg-cyan-50 text-slate-950 shadow-sm"
+                  : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white hover:text-slate-950"
               }`}
             >
               {tab.label}
@@ -342,7 +336,18 @@ export function SiteCommandCenterDashboard({
           ))}
         </div>
         <div className="rounded-[1.35rem] bg-white p-4 shadow-[0_20px_70px_-45px_rgba(15,23,42,0.7)] sm:p-5">
-          {panels[activeIndex] ?? null}
+          {activeTab === "seo-crawl" ? (
+            <div className="space-y-5">
+              <section className="grid gap-5 lg:grid-cols-3">
+                <HealthTrendCard trends={trends} />
+                <IssueBreakdownCard issues={issueBreakdown} />
+              </section>
+              <AttentionCard items={attentionItems} />
+              {panels[activeIndex] ?? null}
+            </div>
+          ) : (
+            panels[activeIndex] ?? null
+          )}
         </div>
       </section>
     </div>

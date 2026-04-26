@@ -132,6 +132,13 @@ export default function PricingPage() {
                       ))}
                     </ul>
                   </div>
+                  {plan.info?.length ? (
+                    <div className="rounded-2xl border border-white/12 bg-black/18 p-3 text-xs leading-relaxed text-white/62">
+                      {plan.info.map((item) => (
+                        <p key={item}>{item}</p>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 <a
                   href={plan.href}

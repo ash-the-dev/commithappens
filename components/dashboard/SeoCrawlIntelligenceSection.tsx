@@ -45,7 +45,7 @@ export function SeoCrawlIntelligenceSection({
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-600">
           <p className="font-semibold text-slate-900">Nothing crawled yet. The bot hasn’t earned its keep.</p>
           <p className="mt-2">
-            Run SEO Crawl sends the Apify worker to check the site. Refresh Stats reloads stored reports once the webhook
+            Run SEO Crawl sends the crawl worker to check the site. Refresh Stats reloads stored reports once the webhook
             finishes saving the useful stuff.
           </p>
         </div>
@@ -57,9 +57,8 @@ export function SeoCrawlIntelligenceSection({
     <div className="space-y-5">
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <p className="min-w-0 text-xs text-slate-600 sm:flex-1 sm:pr-2">
-          <span className="font-semibold text-slate-900">SEO crawl &amp; report</span> — latest stored run, rule-based
-          health, and top fixes. <span className="text-slate-900">Run SEO Crawl</span> gets new SEO data.
-          <span className="text-slate-900"> Refresh Stats</span> just reloads what’s already in the database.
+          <span className="font-semibold text-slate-900">SEO crawl &amp; report</span> — latest stored run, health score,
+          and the first fixes worth touching.
         </p>
         <div className="flex w-full shrink-0 items-center justify-end gap-3 sm:w-auto sm:justify-end">
           <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("seo_crawl_section")} />

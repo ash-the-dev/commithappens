@@ -266,10 +266,6 @@ export function SeoReportRefreshButton({
             Reloads performance stats we already have. No crawling. No drama.
           </p>
         </div>
-        <p className="inline-flex items-center gap-1 text-[0.7rem] text-white/55">
-          <span>Last SEO crawl: {lastSeoLabel}</span>
-          <InfoTooltip buttonClassName={infoBtn} {...getMetricExplanation("seo_crawl_section")} />
-        </p>
         {feedback && message ? (
           <p
             role="status"
@@ -306,7 +302,7 @@ export function SeoReportRefreshButton({
               />
             </div>
             <p className="mt-3 text-xs text-slate-300">
-              If the crawler chokes, you’ll see it here. No mystery meat.
+              If the crawler chokes, you’ll see it here. No guesswork. No rabbit holes.
             </p>
           </div>
         </div>

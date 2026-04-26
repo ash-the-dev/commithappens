@@ -24,7 +24,7 @@ export const BILLING_PLANS: Record<PlanKey, PlanEntitlements> = {
     planKey: "unlimited",
     label: "All In",
     seoEnabled: true,
-    maxSites: 25,
+    maxSites: 10,
   },
 };
 

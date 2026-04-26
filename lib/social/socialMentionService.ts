@@ -49,6 +49,14 @@ export type RecentSocialMentionSummary = {
   mentions: RecentSocialMention[]
 }
 
+export type SocialWatchTermForSite = {
+  id: string
+  term: string
+  term_type: string
+  is_active: boolean
+  created_at: string
+}
+
 type SocialMentionInsertCandidate = Mention & {
   published_at?: string
   discovered_at?: string
@@ -489,5 +497,23 @@ export async function getSocialMentionsNeedingAttention(
     [siteId, safeLimit],
   )
 
+  return result.rows
+}
+
+export async function getSocialWatchTermsForSite(siteId: string): Promise<SocialWatchTermForSite[]> {
+  await ensureSocialTables()
+  const pool = getPool()
+  const result = await pool.query<SocialWatchTermForSite>(
+    `SELECT
+       id::text,
+       term,
+       term_type,
+       is_active,
+       created_at::text
+     FROM social_watch_terms
+     WHERE site_id = $1::uuid
+     ORDER BY created_at ASC`,
+    [siteId],
+  )
   return result.rows
 }
