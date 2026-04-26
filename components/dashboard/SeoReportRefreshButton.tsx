@@ -1,7 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
+import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
 
 const GENERIC_ERR = "Stats didn’t refresh. Rude. Try again.";
 const RUNNING_LINES = [
@@ -19,6 +21,7 @@ type Props = {
   seoEnabled: boolean;
   /** Known environment limitation, shown immediately instead of letting the action feel broken. */
   crawlUnavailableReason?: string | null;
+  lastSeoLabel?: string;
   /** Primary page-level control — larger, higher contrast, meant next to the site title. */
   variant?: "inline" | "hero";
 };
@@ -31,9 +34,11 @@ export function SeoReportRefreshButton({
   siteId,
   seoEnabled,
   crawlUnavailableReason = null,
+  lastSeoLabel = "No SEO crawl yet",
   variant = "inline",
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const crawlPollTimerRef = useRef<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isStartingCrawl, setIsStartingCrawl] = useState(false);
@@ -71,6 +76,14 @@ export function SeoReportRefreshButton({
     [clearCrawlPollTimer, clearFeedbackLater],
   );
 
+  const forceDashboardTopRefresh = useCallback(() => {
+    router.replace(`${pathname}?dashboardRefresh=${Date.now()}`, { scroll: true });
+    router.refresh();
+    window.setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 120);
+  }, [pathname, router]);
+
   const pollCrawlStatus = useCallback(
     (crawlRunId: string) => {
       const maxAttempts = 90;
@@ -101,7 +114,7 @@ export function SeoReportRefreshButton({
 
           const status = result.status?.toLowerCase();
           if (status === "succeeded" || status === "completed") {
-            router.refresh();
+            forceDashboardTopRefresh();
             finishCrawlWait(
               "success",
               `Crawl finished${result.pagesCrawled ? `: ${result.pagesCrawled.toLocaleString("en-US")} pages saved` : ""}. Stats refreshed.`,
@@ -133,7 +146,7 @@ export function SeoReportRefreshButton({
 
       scheduleNextCheck();
     },
-    [finishCrawlWait, router],
+    [finishCrawlWait, forceDashboardTopRefresh],
   );
 
   const onReloadView = useCallback(() => {
@@ -235,6 +248,7 @@ export function SeoReportRefreshButton({
   const runStage =
     crawlElapsedSec < 20 ? "fetching" : crawlElapsedSec < 55 ? "analyzing" : "building report";
   const fakeProgress = Math.min(92, 14 + crawlElapsedSec * 1.25);
+  const infoBtn = "h-4 w-4 min-h-4 min-w-4 border-white/25 bg-white/10 text-white/80";
 
   if (!seoEnabled) {
     return (
@@ -252,6 +266,10 @@ export function SeoReportRefreshButton({
             Reloads performance stats we already have. No crawling. No drama.
           </p>
         </div>
+        <p className="inline-flex items-center gap-1 text-[0.7rem] text-white/55">
+          <span>Last SEO crawl: {lastSeoLabel}</span>
+          <InfoTooltip buttonClassName={infoBtn} {...getMetricExplanation("seo_crawl_section")} />
+        </p>
         {feedback && message ? (
           <p
             role="status"
@@ -320,6 +338,10 @@ export function SeoReportRefreshButton({
           {isStartingCrawl ? "Starting crawl…" : isWaitingForCrawl ? "Saving report…" : "Run SEO crawl"}
         </button>
       ) : null}
+      <p className="inline-flex items-center justify-end gap-1 text-[0.7rem] text-white/55">
+        <span>Last SEO crawl: {lastSeoLabel}</span>
+        <InfoTooltip buttonClassName={infoBtn} {...getMetricExplanation("seo_crawl_section")} />
+      </p>
       {feedback && message ? (
         <p
           role="status"

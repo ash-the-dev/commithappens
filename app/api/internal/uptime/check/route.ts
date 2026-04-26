@@ -1,9 +1,8 @@
 import { getDueUptimeMonitors, recordUptimeCheck } from "@/lib/db/uptime";
+import { runUptimeProbe } from "@/lib/uptime/probe";
 import { urlFromSiteCandidate, validatePublicHttpUrl } from "@/lib/uptime/url-safety";
 
 export const runtime = "nodejs";
-
-const REQUEST_TIMEOUT_MS = 10_000;
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status });
@@ -16,47 +15,6 @@ function isAuthorized(request: Request): boolean {
   const querySecret = searchParams.get("secret")?.trim();
   const headerSecret = request.headers.get("x-cron-secret")?.trim();
   return querySecret === secret || headerSecret === secret;
-}
-
-async function runProbe(url: URL): Promise<{
-  statusCode: number | null;
-  responseTimeMs: number | null;
-  isUp: boolean;
-  errorMessage: string | null;
-}> {
-  const startedAt = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      cache: "no-store",
-      headers: {
-        "User-Agent": "CommitHappens-Uptime/1.0 (+https://www.commithappens.com)",
-      },
-    });
-    clearTimeout(timeout);
-    return {
-      statusCode: response.status,
-      responseTimeMs: Date.now() - startedAt,
-      isUp: response.status >= 200 && response.status <= 399,
-      errorMessage: null,
-    };
-  } catch (err) {
-    clearTimeout(timeout);
-    return {
-      statusCode: null,
-      responseTimeMs: Date.now() - startedAt,
-      isUp: false,
-      errorMessage:
-        err instanceof Error
-          ? (err.name === "AbortError" ? "request_timeout" : err.message).slice(0, 1000)
-          : "request_failed",
-    };
-  }
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -75,7 +33,7 @@ export async function GET(request: Request): Promise<Response> {
       const candidate = urlFromSiteCandidate(monitor.url);
       const safe = candidate ? await validatePublicHttpUrl(candidate) : { ok: false as const, reason: "missing_url" };
       const result = safe.ok
-        ? await runProbe(safe.url)
+        ? await runUptimeProbe(safe.url)
         : {
             statusCode: null,
             responseTimeMs: null,

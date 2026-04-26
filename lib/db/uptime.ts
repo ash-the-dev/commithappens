@@ -10,6 +10,12 @@ export type DueUptimeMonitor = {
   frequency_minutes: number;
 };
 
+export type WebsiteUptimeMonitor = DueUptimeMonitor & {
+  enabled: boolean;
+  last_checked_at: string | null;
+  next_check_at: string | null;
+};
+
 export type InsertUptimeCheckInput = {
   monitorId: string;
   userId?: string | null;
@@ -128,6 +134,48 @@ export async function getDueUptimeMonitors(limit = 50): Promise<DueUptimeMonitor
       url: row.url!,
       frequency_minutes: Math.max(1, Number(row.frequency_minutes ?? FREE_TIER_MIN_PROBE_GAP_MIN)),
     }));
+}
+
+export async function getUptimeMonitorForWebsite(websiteId: string): Promise<WebsiteUptimeMonitor | null> {
+  const pool = getPool();
+  const result = await pool.query<{
+    id: string;
+    user_id: string | null;
+    site_id: string | null;
+    url: string | null;
+    enabled: boolean;
+    frequency_minutes: string | number | null;
+    last_checked_at: string | null;
+    next_check_at: string | null;
+  }>(
+    `SELECT
+       m.id,
+       m.user_id::text,
+       m.site_id::text,
+       coalesce(nullif(trim(m.url), ''), nullif(trim(w.monitoring_url), ''), 'https://' || w.primary_domain) AS url,
+       m.enabled,
+       coalesce(m.frequency_minutes, $2)::text AS frequency_minutes,
+       m.last_checked_at::text,
+       m.next_check_at::text
+     FROM uptime_monitors m
+     LEFT JOIN websites w ON w.id = m.site_id
+     WHERE m.site_id = $1::uuid
+     ORDER BY m.created_at ASC
+     LIMIT 1`,
+    [websiteId, FREE_TIER_MIN_PROBE_GAP_MIN],
+  );
+  const row = result.rows[0];
+  if (!row?.url?.trim()) return null;
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    site_id: row.site_id,
+    url: row.url,
+    enabled: row.enabled,
+    frequency_minutes: Math.max(1, Number(row.frequency_minutes ?? FREE_TIER_MIN_PROBE_GAP_MIN)),
+    last_checked_at: row.last_checked_at,
+    next_check_at: row.next_check_at,
+  };
 }
 
 export async function recordUptimeCheck(input: InsertUptimeCheckInput): Promise<void> {

@@ -45,6 +45,7 @@ import { getCaseWorkbenchData } from "@/lib/db/cases";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
 import { ResponseCodeDashboardCard } from "@/components/dashboard/ResponseCodeDashboardCard";
 import { RefreshPageDataButton } from "@/components/dashboard/RefreshPageDataButton";
+import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
 import { getBillingAccess } from "@/lib/billing/access";
 import { UptimeMonitorCard } from "@/components/dashboard/UptimeMonitorCard";
 import { ensureUptimeCheckForWebsite, getWebsiteUptimeHistory, getWebsiteUptimeSnapshot } from "@/lib/db/uptime";
@@ -59,6 +60,7 @@ import {
 import { buildSiteTrendsPayload } from "@/lib/dashboard/site-trends";
 import { SeoReportRefreshButton } from "@/components/dashboard/SeoReportRefreshButton";
 import { AiSeoRecommendationsCard } from "@/components/dashboard/AiSeoRecommendationsCard";
+import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
 import {
   SiteCommandCenterDashboard,
   type CommandCenterSummaryCard,
@@ -72,6 +74,21 @@ function compactDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "Not run yet";
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function relativeTime(iso: string | null | undefined, fallback = "Not run yet"): string {
+  if (!iso) return fallback;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return fallback;
+  const diffMs = Date.now() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  return compactDate(iso);
 }
 
 export default async function SiteDetailPage({ params }: Props) {
@@ -117,6 +134,9 @@ export default async function SiteDetailPage({ params }: Props) {
   ]);
   const uptimeCardHistory = uptimeHistory.slice(0, 50);
   const siteTrendsInitial = buildSiteTrendsPayload(crawlRunHistory, uptimeHistory);
+  const lastSeoLabel = relativeTime(crawlSnapshot?.created_at, "No SEO crawl yet");
+  const lastUptimeLabel = relativeTime(uptimeSnapshot?.lastCheckedAt, "No uptime check yet");
+  const dashboardLoadedLabel = relativeTime(siteTrendsInitial.generatedAt, "Loaded just now");
 
   let threatOverview = emptyWebsiteThreatOverview();
   let changeImpacts: Awaited<ReturnType<typeof getWebsiteChangeImpacts>> = [];
@@ -271,7 +291,7 @@ export default async function SiteDetailPage({ params }: Props) {
       title: "Crawl status",
       value: crawlSnapshot ? compactDate(crawlSnapshot.created_at) : "Not run",
       caption: apifyWorkerConfigured
-        ? "Apify worker is connected. Run SEO Crawl starts a background crawl."
+        ? `Apify worker is connected. Last SEO crawl: ${lastSeoLabel}.`
         : "Stored reports can refresh, but new crawls need the worker connected.",
       badge: apifyWorkerConfigured ? "Worker ready" : "Worker off",
       targetTab: "seo-crawl",
@@ -297,6 +317,7 @@ export default async function SiteDetailPage({ params }: Props) {
       : []),
     { id: "install", label: "Install" },
   ];
+  const headerInfoBtn = "h-4 w-4 min-h-4 min-w-4 border-white/25 bg-white/10 text-white/80";
 
  return (
     <main className="relative isolate mx-auto max-w-6xl space-y-10 overflow-hidden rounded-b-3xl px-6 py-12 sm:px-7">
@@ -319,7 +340,21 @@ export default async function SiteDetailPage({ params }: Props) {
               Site selector: <span className="font-semibold text-white">{site.primary_domain}</span>
             </span>
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
-              Last updated: <span className="font-semibold text-white">{compactDate(crawlSnapshot?.created_at ?? siteTrendsInitial.generatedAt)}</span>
+              Dashboard loaded: <span className="font-semibold text-white">{dashboardLoadedLabel}</span>
+            </span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
+              <span className="inline-flex items-center gap-1">
+                Last SEO
+                <InfoTooltip buttonClassName={headerInfoBtn} {...getMetricExplanation("seo_crawl_section")} />
+                : <span className="font-semibold text-white">{lastSeoLabel}</span>
+              </span>
+            </span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
+              <span className="inline-flex items-center gap-1">
+                Last uptime
+                <InfoTooltip buttonClassName={headerInfoBtn} {...getMetricExplanation("uptime")} />
+                : <span className="font-semibold text-white">{lastUptimeLabel}</span>
+              </span>
             </span>
           </div>
         </div>
@@ -327,6 +362,7 @@ export default async function SiteDetailPage({ params }: Props) {
           siteId={site.id}
           seoEnabled={seoEnabled}
           crawlUnavailableReason={crawlUnavailableReason}
+          lastSeoLabel={lastSeoLabel}
           variant="hero"
         />
       </div>
@@ -343,8 +379,8 @@ export default async function SiteDetailPage({ params }: Props) {
         <DashboardSection
           kicker="Reality check"
           title="Traffic and engagement"
-          subtitle="Verified from pageviews.occurred_at and distinct session_id. No placeholder metrics."
-          eyebrowRight={<RefreshPageDataButton idleLabel="Refresh stats" loadingLabel="Refreshing..." />}
+          subtitle="Verified from stored pageviews and sessions. No placeholder metrics."
+          eyebrowRight={<RefreshPageDataButton lastLoadedLabel={`Analytics view loaded ${dashboardLoadedLabel}`} />}
         >
           <SiteAnalyticsCharts analytics={analytics} />
         </DashboardSection>
@@ -355,6 +391,7 @@ export default async function SiteDetailPage({ params }: Props) {
             actually scheduled.
           </div>
           <UptimeMonitorCard
+            siteId={site.id}
             snapshot={uptimeSnapshot}
             history={uptimeCardHistory}
           />

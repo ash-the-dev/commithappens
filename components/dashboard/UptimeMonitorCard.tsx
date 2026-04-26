@@ -1,8 +1,10 @@
 import type { WebsiteUptimeHistoryItem, WebsiteUptimeSnapshot } from "@/lib/db/uptime";
 import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
 import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
+import { UptimeRefreshButton } from "@/components/dashboard/UptimeRefreshButton";
 
 type Props = {
+  siteId: string;
   snapshot: WebsiteUptimeSnapshot | null;
   history: WebsiteUptimeHistoryItem[];
 };
@@ -32,7 +34,7 @@ function tickTone(status: WebsiteUptimeHistoryItem["status"]): string {
   return "bg-rose-500 shadow-[0_0_18px_rgba(244,63,94,0.45)]";
 }
 
-export function UptimeMonitorCard({ snapshot, history }: Props) {
+export function UptimeMonitorCard({ siteId, snapshot, history }: Props) {
   const currentStatus = snapshot?.status ?? "unknown";
   const cadence = snapshot?.frequencyMinutes ?? 30;
   const orderedHistory = history.slice(0, 50).reverse();
@@ -68,11 +70,18 @@ export function UptimeMonitorCard({ snapshot, history }: Props) {
             <p className="mt-1 max-w-xl truncate font-mono text-[11px] text-slate-400">{snapshot.monitorUrl}</p>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <UptimeRefreshButton
+            siteId={siteId}
+            lastCheckedLabel={formatRelative(snapshot?.lastCheckedAt ?? null)}
+            disabled={snapshot?.monitorEnabled === false}
+          />
+          <div className="flex items-center gap-1.5">
           <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("uptime")} />
           <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusTone(currentStatus)}`}>
             {currentStatus}
           </span>
+          </div>
         </div>
       </div>
 
@@ -87,7 +96,10 @@ export function UptimeMonitorCard({ snapshot, history }: Props) {
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-slate-500">Response Time</p>
+          <p className="flex items-center gap-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-slate-500">
+            <span>Response Time</span>
+            <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("response_time")} />
+          </p>
           <p className="mt-1 text-2xl font-bold text-slate-950">
             {latestResponse != null ? `${latestResponse}ms` : "n/a"}
           </p>
@@ -138,7 +150,10 @@ export function UptimeMonitorCard({ snapshot, history }: Props) {
           <div className="mb-0.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-slate-200 pb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400 sm:text-[10px]">
             <span>Check</span>
             <span>When</span>
-            <span>HTTP</span>
+            <span className="inline-flex items-center gap-1">
+              HTTP
+              <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("http_status")} />
+            </span>
             <span>Time (ms)</span>
           </div>
         ) : null}

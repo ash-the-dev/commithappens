@@ -197,6 +197,20 @@ export function HowItWorksDemo({ badge = "Most popular" }: { badge?: string }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (isScanning) return;
+
+    const tabRotation = window.setInterval(() => {
+      setActiveTab((current) => {
+        const currentIndex = tabs.findIndex((tab) => tab.key === current);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % tabs.length : 0;
+        return tabs[nextIndex].key;
+      });
+    }, 5000);
+
+    return () => window.clearInterval(tabRotation);
+  }, [isScanning]);
+
   return (
     <section className="rounded-[1.75rem] border border-brand/35 bg-slate-950/72 p-4 shadow-[0_32px_100px_-50px_rgba(246,121,208,0.9)] backdrop-blur-xl sm:p-5">
       <div className="relative overflow-hidden rounded-[1.35rem] border border-white/12 bg-white/4 p-4 sm:p-5">
