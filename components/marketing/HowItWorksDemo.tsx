@@ -165,6 +165,21 @@ function RecommendationsPanel() {
         </div>
       </div>
       <div className="space-y-3">
+        <div className="rounded-2xl border border-rose-300/30 bg-rose-400/10 p-4 shadow-[0_18px_60px_-42px_rgba(251,113,133,0.9)]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-rose-200">Someone mentioned your brand</p>
+            <span className="rounded-full border border-rose-200/30 bg-rose-200/10 px-2 py-1 text-xs font-bold text-rose-100">
+              Negative sentiment
+            </span>
+          </div>
+          <p className="mt-3 text-lg font-black text-white">A public mention may create trust concerns if left unanswered.</p>
+          <p className="mt-2 text-sm leading-relaxed text-white/70">
+            Review the source and respond with a clear, calm clarification.
+          </p>
+          <Link href="/register" className="mt-3 inline-flex text-sm font-black text-rose-100 transition hover:text-white">
+            See what needs attention
+          </Link>
+        </div>
         {[
           ["Plus point", "Traffic is up 14%, and mobile visitors are sticking around longer."],
           ["Watch item", "Pricing visits are up, but CTA clicks are down. Attention is not commitment."],

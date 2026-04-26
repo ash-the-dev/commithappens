@@ -65,14 +65,14 @@ export default function Home() {
             <BetaBadge />
             <div className="max-w-3xl space-y-5">
               <p className="text-xl font-semibold leading-snug tracking-tight text-white md:text-2xl">
-                Track website performance, not red flags.
+                Uptime, SEO issues, and brand mentions—prioritized and explained in plain English.
               </p>
               <div className="space-y-3">
                 <h1 className="text-4xl font-black leading-[0.95] tracking-[-0.04em] text-white sm:text-5xl md:text-6xl">
-                  You pushed code. Did it actually do anything?
+                  Most tools give you data. Commit Happens gives you decisions.
                 </h1>
                 <p className="max-w-2xl text-lg leading-relaxed text-white/80 md:text-xl">
-                  See what changed, what broke, and exactly what to fix — in plain English.
+                  Know what&apos;s broken, what matters, and what to fix first.
                 </p>
               </div>
               <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center">
@@ -80,22 +80,22 @@ export default function Home() {
                   href="/register"
                   className="u-shadow-brand-card inline-flex justify-center rounded-full bg-brand px-6 py-3 text-sm font-semibold text-black transition hover:bg-brand-muted"
                 >
-                  Start monitoring
+                  Show me what broke
                 </Link>
                 <Link
                   href="/how-it-works"
                   className="inline-flex justify-center rounded-full border border-white/25 px-6 py-3 text-sm font-semibold text-white/90 transition hover:border-brand hover:text-brand"
                 >
-                  See how it works
+                  Show me what broke
                 </Link>
               </div>
               <p className="text-sm font-semibold text-white/65">
-                No technical knowledge required.
+                Quick, guided setup. No technical knowledge required.
               </p>
             </div>
             <div className="ui-surface-contrast hero-result-card max-w-3xl animate-float-soft p-5 sm:p-6">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-fuchsia-700">
-                Here&apos;s what we found in seconds:
+                Your site&apos;s warning lights, translated
               </p>
               <div className="mt-4 space-y-3 text-base font-semibold text-slate-900">
                 <p className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/75 p-3">
@@ -121,19 +121,38 @@ export default function Home() {
 
             <div
               id="how-it-works"
-              className="grid gap-3 rounded-2xl border border-white/20 bg-white/8 p-4 backdrop-blur-md sm:grid-cols-3"
+              className="rounded-2xl border border-white/20 bg-white/8 p-4 backdrop-blur-md"
             >
-              <div className="rounded-xl border border-white/20 bg-white/8 p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/65">Step 1</p>
-                <p className="mt-2 text-sm font-semibold text-white">Add your site</p>
-              </div>
-              <div className="rounded-xl border border-white/20 bg-white/8 p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/65">Step 2</p>
-                <p className="mt-2 text-sm font-semibold text-white">We crawl + analyze</p>
-              </div>
-              <div className="rounded-xl border border-white/20 bg-white/8 p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/65">Step 3</p>
-                <p className="mt-2 text-sm font-semibold text-white">You fix what actually matters</p>
+              <h2 className="text-lg font-black tracking-tight text-white">How Commit Happens Works</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  [
+                    "1",
+                    "Add your site",
+                    "Paste your URL and install a tiny script — we'll guide you in under a minute. No coding experience needed.",
+                  ],
+                  [
+                    "2",
+                    "We scan everything",
+                    "Uptime, SEO issues, broken pages, performance, and brand mentions.",
+                  ],
+                  [
+                    "3",
+                    "We rank what matters",
+                    "We don't dump data. We show what needs attention first.",
+                  ],
+                  [
+                    "4",
+                    "You fix with confidence",
+                    "Plain-English explanations tell you what happened, why it matters, and what to do next.",
+                  ],
+                ].map(([step, title, copy]) => (
+                  <div key={step} className="rounded-xl border border-white/20 bg-white/8 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/65">Step {step}</p>
+                    <p className="mt-2 text-sm font-semibold text-white">{title}</p>
+                    <p className="mt-2 text-xs leading-relaxed text-white/62">{copy}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
