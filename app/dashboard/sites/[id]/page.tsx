@@ -66,6 +66,14 @@ import {
   type CommandCenterSummaryCard,
   type CommandCenterTab,
 } from "@/components/dashboard/SiteCommandCenterDashboard";
+import { SocialAttentionSection } from "@/components/dashboard/SocialAttentionSection";
+import { ReputationPulseTeaser } from "@/components/dashboard/ReputationPulseTeaser";
+import {
+  SMART_MOCK_ATTENTION_ISSUES,
+  SMART_MOCK_SOCIAL_MENTIONS,
+  shouldUseSmartMock,
+} from "@/lib/dashboard/smart-mock";
+import { getSocialMentionsNeedingAttention } from "@/lib/social/socialMentionService";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -104,6 +112,8 @@ export default async function SiteDetailPage({ params }: Props) {
   const billing = await getBillingAccess(session.user.id, session.user.email);
   const seoEnabled = billing.seoEnabled;
   const canUseIntelligence = billing.canUseIntelligence;
+  const canUseReputationPulse = billing.canUseReputationPulse;
+  const showReputationPulseTeaser = billing.showReputationPulseTeaser;
 
   await ensureUptimeCheckForWebsite({
     websiteId: site.id,
@@ -122,6 +132,7 @@ export default async function SiteDetailPage({ params }: Props) {
     topCrawlIssues,
     crawlRunHistory,
     onPageForReport,
+    socialMentionsNeedingAttention,
   ] = await Promise.all([
     getSiteAnalytics(site.id),
     getSiteLiveActivity(site.id, 25),
@@ -131,9 +142,17 @@ export default async function SiteDetailPage({ params }: Props) {
     getTopCrawlIssues(site.id, 3).catch(() => []),
     getSeoCrawlRunHistory(site.id, 18).catch(() => []),
     getSeoCrawlOnPageBreakdown(site.id).catch(() => null),
+    canUseReputationPulse ? getSocialMentionsNeedingAttention(site.id, 5).catch(() => []) : Promise.resolve([]),
   ]);
   const uptimeCardHistory = uptimeHistory.slice(0, 50);
   const siteTrendsInitial = buildSiteTrendsPayload(crawlRunHistory, uptimeHistory);
+  const useSmartMock = shouldUseSmartMock(siteTrendsInitial.source);
+  const socialAttentionMentions =
+    socialMentionsNeedingAttention.length > 0
+      ? socialMentionsNeedingAttention
+      : useSmartMock
+        ? SMART_MOCK_SOCIAL_MENTIONS
+        : [];
   const lastSeoLabel = relativeTime(crawlSnapshot?.created_at, "No SEO crawl yet");
   const lastUptimeLabel = relativeTime(uptimeSnapshot?.lastCheckedAt, "No uptime check yet");
   const dashboardLoadedLabel = relativeTime(siteTrendsInitial.generatedAt, "Loaded just now");
@@ -221,12 +240,14 @@ export default async function SiteDetailPage({ params }: Props) {
     (crawlSnapshot?.critical_count ?? 0);
   const attentionItems = Array.from(
     new Set(
-      topCrawlIssues.map((issue) => {
-        const subject = issue.url || issue.title || site.primary_domain;
-        const priority = issue.priorityLabel || issue.issue_severity || "Review";
-        const label = issue.title && issue.title !== issue.url ? issue.title : issue.issue_type;
-        return `${priority}: ${label} on ${subject}`;
-      }),
+      useSmartMock
+        ? SMART_MOCK_ATTENTION_ISSUES.map((issue) => `${issue.category}: ${issue.title}`)
+        : topCrawlIssues.map((issue) => {
+            const subject = issue.url || issue.title || site.primary_domain;
+            const priority = issue.priorityLabel || issue.issue_severity || "Review";
+            const label = issue.title && issue.title !== issue.url ? issue.title : issue.issue_type;
+            return `${priority}: ${label} on ${subject}`;
+          }),
     ),
   ).slice(0, 4);
 
@@ -376,6 +397,16 @@ export default async function SiteDetailPage({ params }: Props) {
         activityItems={liveActivity}
         tabs={detailTabs}
       >
+        {canUseReputationPulse ? (
+          <SocialAttentionSection
+            mentions={socialAttentionMentions}
+            smartMockIssues={useSmartMock ? SMART_MOCK_ATTENTION_ISSUES : undefined}
+            isSmartMock={useSmartMock}
+          />
+        ) : showReputationPulseTeaser ? (
+          <ReputationPulseTeaser />
+        ) : null}
+
         <DashboardSection
           kicker="Reality check"
           title="Traffic and engagement"

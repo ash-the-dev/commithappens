@@ -6,6 +6,11 @@ export type UserPlanLimits = {
   maxWebsites: number;
   canUseSEO: boolean;
   canUseIntelligence: boolean;
+  canUseReputationPulse: boolean;
+  showReputationPulseTeaser: boolean;
+  reputationWatchTermLimit: number;
+  reputationMentionsPerRun: number;
+  reputationAiEnrichmentEnabled: boolean;
   monitoringLevel: "basic" | "advanced";
   /** Uptime and ingest monitoring allowed */
   monitoringEnabled: boolean;
@@ -20,13 +25,70 @@ export type UserPlanLimits = {
 const FREE_UPTIME_SEC = 30 * 60;
 const PAID_UPTIME_SEC = 5 * 60;
 
-export function getUserPlanLimits(plan: string): UserPlanLimits {
+export type ReputationPulseLimits = Pick<
+  UserPlanLimits,
+  | "canUseReputationPulse"
+  | "showReputationPulseTeaser"
+  | "reputationWatchTermLimit"
+  | "reputationMentionsPerRun"
+  | "reputationAiEnrichmentEnabled"
+>;
+
+const REPUTATION_PULSE_LIMITS: Record<"free" | "situationship" | "committed" | "unlimited", ReputationPulseLimits> = {
+  free: {
+    canUseReputationPulse: false,
+    showReputationPulseTeaser: false,
+    reputationWatchTermLimit: 0,
+    reputationMentionsPerRun: 0,
+    reputationAiEnrichmentEnabled: false,
+  },
+  situationship: {
+    canUseReputationPulse: false,
+    showReputationPulseTeaser: true,
+    reputationWatchTermLimit: 0,
+    reputationMentionsPerRun: 0,
+    reputationAiEnrichmentEnabled: false,
+  },
+  committed: {
+    canUseReputationPulse: true,
+    showReputationPulseTeaser: false,
+    reputationWatchTermLimit: 3,
+    reputationMentionsPerRun: 10,
+    reputationAiEnrichmentEnabled: true,
+  },
+  unlimited: {
+    canUseReputationPulse: true,
+    showReputationPulseTeaser: false,
+    reputationWatchTermLimit: 25,
+    reputationMentionsPerRun: 50,
+    reputationAiEnrichmentEnabled: true,
+  },
+};
+
+function normalizePlan(plan: string): "free" | "situationship" | "committed" | "unlimited" {
   const p = plan.trim().toLowerCase();
+  if (p === "situationship") return "situationship";
+  if (p === "committed" || p === "pro") return "committed";
+  if (p === "unlimited" || p === "all-in" || p === "all in") return "unlimited";
+  return "free";
+}
+
+export function getReputationPulseLimits(plan: string): ReputationPulseLimits {
+  return REPUTATION_PULSE_LIMITS[normalizePlan(plan)];
+}
+
+export function canUseReputationPulse(plan: string): boolean {
+  return getReputationPulseLimits(plan).canUseReputationPulse;
+}
+
+export function getUserPlanLimits(plan: string): UserPlanLimits {
+  const p = normalizePlan(plan);
   if (p === "free") {
     return {
       maxWebsites: 1,
       canUseSEO: false,
       canUseIntelligence: false,
+      ...getReputationPulseLimits("free"),
       monitoringLevel: "basic",
       monitoringEnabled: true,
       minUptimeIntervalSeconds: FREE_UPTIME_SEC,
@@ -39,6 +101,7 @@ export function getUserPlanLimits(plan: string): UserPlanLimits {
       maxWebsites: 1,
       canUseSEO: true,
       canUseIntelligence: true,
+      ...getReputationPulseLimits("situationship"),
       monitoringLevel: "advanced",
       monitoringEnabled: true,
       minUptimeIntervalSeconds: PAID_UPTIME_SEC,
@@ -46,11 +109,12 @@ export function getUserPlanLimits(plan: string): UserPlanLimits {
       maxRecommendationRunsPerSitePerWeek: 1,
     };
   }
-  if (p === "committed" || p === "pro") {
+  if (p === "committed") {
     return {
       maxWebsites: 3,
       canUseSEO: true,
       canUseIntelligence: true,
+      ...getReputationPulseLimits("committed"),
       monitoringLevel: "advanced",
       monitoringEnabled: true,
       minUptimeIntervalSeconds: PAID_UPTIME_SEC,
@@ -58,11 +122,12 @@ export function getUserPlanLimits(plan: string): UserPlanLimits {
       maxRecommendationRunsPerSitePerWeek: 1,
     };
   }
-  if (p === "unlimited" || p === "all-in" || p === "all in") {
+  if (p === "unlimited") {
     return {
       maxWebsites: 25,
       canUseSEO: true,
       canUseIntelligence: true,
+      ...getReputationPulseLimits("unlimited"),
       monitoringLevel: "advanced",
       monitoringEnabled: true,
       minUptimeIntervalSeconds: PAID_UPTIME_SEC,
