@@ -1,0 +1,18 @@
+name: Uptime Check
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Run uptime checker
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Call Commit Happens uptime checker
+        run: |
+          curl --fail --show-error --silent \
+            "https://commithappens-ipayy1sjq-ash-armstrongs-projects.vercel.app/api/internal/uptime/check?secret=${{ secrets.UPTIME_CRON_SECRET }}"
