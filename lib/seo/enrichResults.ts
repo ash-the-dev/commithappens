@@ -3,6 +3,10 @@ import {
   type SeoEffort,
   type SeoPriorityLabel,
 } from "@/lib/seo/recommendationCopy";
+import {
+  generateSeoRecommendations,
+  type SeoRecommendationsOutput,
+} from "@/lib/ai/seoRecommendations";
 
 export type EnrichedIssueSeverity = "critical" | "high" | "medium" | "low";
 export type EnrichedImpactArea = string;
@@ -38,6 +42,7 @@ export type EnrichedPage = {
   h1Count: number;
   linksCount: number;
   issues: EnrichedIssue[];
+  aiRecommendations: SeoRecommendationsOutput | null;
   score: number;
   raw: unknown;
 };
@@ -78,6 +83,8 @@ const severityRank: Record<EnrichedIssueSeverity, number> = {
   medium: 2,
   low: 1,
 };
+
+const AI_RECOMMENDATION_PAGE_LIMIT = 5;
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -207,6 +214,19 @@ function buildTopIssues(issues: EnrichedIssue[]): EnrichedTopIssue[] {
     .slice(0, 5);
 }
 
+function aiCandidateScore(page: EnrichedPage): number {
+  const issueWeight = page.issues.reduce((sum, issue) => sum + severityRank[issue.severity], 0);
+  const statusWeight = page.status != null && page.status >= 400 ? 10 : 0;
+  return issueWeight + statusWeight + (100 - page.score) / 20;
+}
+
+function topPagesForAi(pages: EnrichedPage[]): EnrichedPage[] {
+  return [...pages]
+    .filter((page) => page.issues.length > 0 || (page.status != null && page.status >= 400))
+    .sort((a, b) => aiCandidateScore(b) - aiCandidateScore(a))
+    .slice(0, AI_RECOMMENDATION_PAGE_LIMIT);
+}
+
 export function enrichResults(items: unknown[]): EnrichedResults {
   const seeds = items.map(normalizeSeed).filter((item): item is PageSeed => item != null);
   const titleCounts = countByNormalizedValue(seeds.map((page) => page.title));
@@ -326,6 +346,7 @@ export function enrichResults(items: unknown[]): EnrichedResults {
       h1Count: page.h1.length,
       linksCount: page.linksCount,
       issues,
+      aiRecommendations: null,
       score: scorePage(issues),
       raw: page.raw,
     };
@@ -359,4 +380,29 @@ export function enrichResults(items: unknown[]): EnrichedResults {
     issues,
     topIssues: buildTopIssues(issues),
   };
+}
+
+export async function enrichResultsWithAi(items: unknown[]): Promise<EnrichedResults> {
+  const enriched = enrichResults(items);
+  const candidates = topPagesForAi(enriched.pages);
+  if (candidates.length === 0) {
+    return enriched;
+  }
+
+  await Promise.all(
+    candidates.map(async (page) => {
+      const aiRecommendations = await generateSeoRecommendations({
+        pageUrl: page.url,
+        title: page.title,
+        metaDescription: page.metaDescription,
+        h1: page.h1[0] ?? null,
+        statusCode: page.status,
+        internalLinksCount: page.linksCount,
+        detectedIssues: page.issues.map((issue) => `${issue.severity}: ${issue.title}`),
+      });
+      page.aiRecommendations = aiRecommendations;
+    }),
+  );
+
+  return enriched;
 }

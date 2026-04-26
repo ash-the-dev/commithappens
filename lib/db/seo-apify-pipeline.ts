@@ -103,10 +103,15 @@ async function ensureSeoPipelineTables() {
       issues jsonb NULL,
       warnings jsonb NULL,
       opportunities jsonb NULL,
+      ai_recommendations jsonb NULL,
       score int NULL,
       raw jsonb NULL,
       created_at timestamptz DEFAULT now()
     )
+  `);
+  await pool.query(`
+    ALTER TABLE seo_page_reports
+      ADD COLUMN IF NOT EXISTS ai_recommendations jsonb
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS seo_issues (
@@ -378,10 +383,10 @@ export async function persistApifySeoResults(input: {
         `INSERT INTO seo_page_reports (
           crawl_run_id, site_id, url, status_code, title, title_length, meta_description,
           meta_description_length, h1s, h1_count, canonical_url, is_indexable, internal_links,
-          external_links, broken_links, issues, warnings, opportunities, score, raw
+          external_links, broken_links, issues, warnings, opportunities, ai_recommendations, score, raw
         ) VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::jsonb,
-          $14::jsonb, $15::jsonb, $16::jsonb, $17::jsonb, $18::jsonb, $19, $20::jsonb
+          $14::jsonb, $15::jsonb, $16::jsonb, $17::jsonb, $18::jsonb, $19::jsonb, $20, $21::jsonb
         )`,
         [
           input.crawlRunId,
@@ -402,6 +407,7 @@ export async function persistApifySeoResults(input: {
           JSON.stringify(page.issues),
           JSON.stringify(page.warnings),
           JSON.stringify(page.opportunities),
+          page.aiRecommendations ? JSON.stringify(page.aiRecommendations) : null,
           page.score,
           JSON.stringify(page.raw ?? {}),
         ],

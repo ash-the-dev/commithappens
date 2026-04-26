@@ -1,4 +1,9 @@
-import { enrichResults, type EnrichedIssueSeverity, type EnrichedResults } from "@/lib/seo/enrichResults";
+import {
+  enrichResults,
+  type EnrichedIssueSeverity,
+  type EnrichedResults,
+} from "@/lib/seo/enrichResults";
+import type { SeoRecommendationsOutput } from "@/lib/ai/seoRecommendations";
 
 export type SeoIssueSeverity = "critical" | "high" | "medium" | "low" | "info";
 export type SeoImpactArea = string;
@@ -36,6 +41,7 @@ export type NormalizedSeoPage = {
   issues: NormalizedSeoIssue[];
   warnings: NormalizedSeoIssue[];
   opportunities: NormalizedSeoIssue[];
+  aiRecommendations: SeoRecommendationsOutput | null;
   score: number;
   raw: unknown;
 };
@@ -102,6 +108,7 @@ export function normalizeEnrichedResults(enriched: EnrichedResults): NormalizedA
       issues: issues.filter((item) => item.severity === "critical" || item.severity === "high"),
       warnings: issues.filter((item) => item.severity === "medium"),
       opportunities: issues.filter((item) => item.severity === "low" || item.severity === "info"),
+      aiRecommendations: page.aiRecommendations,
       score: page.score,
       raw: page.raw,
     };

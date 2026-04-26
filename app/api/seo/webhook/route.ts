@@ -4,7 +4,7 @@ import {
   markSeoCrawlRunFailedByProviderRunId,
   persistApifySeoResults,
 } from "@/lib/db/seo-apify-pipeline";
-import { enrichResults } from "@/lib/seo/enrichResults";
+import { enrichResultsWithAi } from "@/lib/seo/enrichResults";
 import { normalizeEnrichedResults } from "@/lib/seo/normalizeApifyResults";
 
 export const runtime = "nodejs";
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     const items = await fetchDatasetItems(datasetId, apiToken);
-    const enriched = enrichResults(items);
+    const enriched = await enrichResultsWithAi(items);
     const normalized = normalizeEnrichedResults(enriched);
     await persistApifySeoResults({
       crawlRunId: crawlRun.id,
