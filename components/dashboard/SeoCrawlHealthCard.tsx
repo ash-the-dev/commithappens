@@ -4,6 +4,7 @@ import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
 
 type Props = {
   run: SeoCrawlRunRow;
+  previousHealthScore?: number | null;
 };
 
 const btn = "h-4 w-4 text-[8px] border-slate-300 bg-slate-100 text-slate-700 hover:border-blue-300";
@@ -14,10 +15,18 @@ function scoreTone(score: number): string {
   return "text-amber-600";
 }
 
-export function SeoCrawlHealthCard({ run }: Props) {
+export function SeoCrawlHealthCard({ run, previousHealthScore = null }: Props) {
   const d = new Date(run.created_at);
   const when = Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("en-US", { dateStyle: "medium" });
   const total = Math.max(1, run.healthy_count + run.notice_count + run.warning_count + run.critical_count);
+  const delta = previousHealthScore != null ? run.health_score - previousHealthScore : null;
+  const issueTotal = run.notice_count + run.warning_count + run.critical_count;
+  const interpretation =
+    run.health_score >= 85
+      ? "Healthy and boring in the best way. Keep the structure clean before adding shiny extras."
+      : issueTotal > 0
+        ? "Not broken, but under-optimized. Most issues are structural, not technical."
+        : "Stable overall. Now it’s about refinement, not emergency cleanup.";
 
   return (
     <article className="rounded-3xl border border-slate-200 bg-white p-1 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)] sm:p-1.5">
@@ -29,26 +38,32 @@ export function SeoCrawlHealthCard({ run }: Props) {
         <p className={`mt-1 text-4xl font-bold tabular-nums tracking-tight ${scoreTone(run.health_score)}`}>
           {run.health_score}
         </p>
-        <p className="mt-1 text-sm text-slate-600">Rule-based score from your latest import (0–100). Lower when issues add up.</p>
-        <div className="mt-4 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
-          <div className="flex h-3">
+        {delta != null ? (
+          <p className={`mt-1 text-xs font-semibold ${delta >= 0 ? "text-blue-700" : "text-amber-700"}`}>
+            {delta >= 0 ? `+${delta}` : delta} from last crawl
+          </p>
+        ) : null}
+        <p className="mt-2 text-sm font-medium text-slate-800">{interpretation}</p>
+        <p className="mt-1 text-xs text-slate-500">What to do next: fix the highest-impact structure issue, then use the next crawl to verify.</p>
+        <div className="mt-4 overflow-hidden rounded-full border border-slate-300 bg-slate-200">
+          <div className="flex h-3.5">
             <span
-              className="bg-blue-500"
+              className="bg-blue-600"
               style={{ width: `${(run.healthy_count / total) * 100}%` }}
               title={`${run.healthy_count} healthy`}
             />
             <span
-              className="bg-cyan-400"
+              className="bg-cyan-500"
               style={{ width: `${(run.notice_count / total) * 100}%` }}
               title={`${run.notice_count} notices`}
             />
             <span
-              className="bg-violet-500"
+              className="bg-violet-600"
               style={{ width: `${(run.warning_count / total) * 100}%` }}
               title={`${run.warning_count} warnings`}
             />
             <span
-              className="bg-amber-400"
+              className="bg-amber-500"
               style={{ width: `${(run.critical_count / total) * 100}%` }}
               title={`${run.critical_count} critical`}
             />

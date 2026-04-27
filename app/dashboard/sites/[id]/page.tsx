@@ -13,10 +13,10 @@ import { emptyWebsiteInsightsForFreePlan, getWebsiteInsights } from "@/lib/db/in
 import { ThreatOverviewCard } from "@/components/dashboard/ThreatOverviewCard";
 import { FlaggedActivityCard } from "@/components/dashboard/FlaggedActivityCard";
 import { ChangeImpactCard } from "@/components/dashboard/ChangeImpactCard";
-import { AiSummaryCard } from "@/components/dashboard/AiSummaryCard";
-import { SpikeExplanationCard } from "@/components/dashboard/SpikeExplanationCard";
-import { ChangeImpactNarrativeCard } from "@/components/dashboard/ChangeImpactNarrativeCard";
 import { RecommendationsCard } from "@/components/dashboard/RecommendationsCard";
+import { LazyAiSummaryCard } from "@/components/dashboard/LazyAiSummaryCard";
+import { LazySpikeExplanationCard } from "@/components/dashboard/LazySpikeExplanationCard";
+import { LazyChangeImpactNarrativeCard } from "@/components/dashboard/LazyChangeImpactNarrativeCard";
 import { AnalystChatCard } from "@/components/dashboard/AnalystChatCard";
 import { AlertCenterCard } from "@/components/dashboard/AlertCenterCard";
 import { PlaybookCard } from "@/components/dashboard/PlaybookCard";
@@ -30,17 +30,19 @@ import {
   getWebsiteThreatOverview,
 } from "@/lib/db/threats";
 import { getWebsiteChangeImpacts } from "@/lib/db/change-impact";
-import { buildWebsiteSummaryInput } from "@/lib/ai/build-website-summary-input";
-import { generateWebsiteAiSummary } from "@/lib/ai/generate-website-ai-summary";
-import { generateSpikeExplanation } from "@/lib/ai/generate-spike-explanation";
-import { generateChangeImpactNarrative } from "@/lib/ai/generate-change-impact-narrative";
-import { generateWebsiteRecommendations } from "@/lib/ai/generate-website-recommendations";
+import { prioritizeWebsiteRecommendations } from "@/lib/ai/build-recommended-actions-input";
+import { buildFallbackSpikeExplanation } from "@/lib/ai/generate-spike-explanation";
+import { buildFallbackChangeImpactNarrative } from "@/lib/ai/generate-change-impact-narrative";
+import { buildFallbackWebsiteRecommendations } from "@/lib/ai/generate-website-recommendations";
+import type {
+  ChangeImpactNarrativeInput,
+  RecommendationPriority,
+  SpikeExplanationInput,
+  WebsiteRecommendationsInput,
+} from "@/lib/ai/types";
 import type { WebsiteAlertCenterData } from "@/lib/db/alerts";
 import { getWebsiteAlertCenterData } from "@/lib/db/alerts";
-import {
-  getWebsiteNotifications,
-  syncWebsiteNotifications,
-} from "@/lib/db/notifications";
+import { getWebsiteNotifications } from "@/lib/db/notifications";
 import { getCaseWorkbenchData } from "@/lib/db/cases";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
 import { ResponseCodeDashboardCard } from "@/components/dashboard/ResponseCodeDashboardCard";
@@ -49,8 +51,7 @@ import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
 import { getBillingAccess } from "@/lib/billing/access";
 import { canUseFeature, getPlanLimit, shouldShowFeature } from "@/lib/entitlements";
 import { UptimeMonitorCard } from "@/components/dashboard/UptimeMonitorCard";
-import { ensureUptimeCheckForWebsite, getWebsiteUptimeHistory, getWebsiteUptimeSnapshot } from "@/lib/db/uptime";
-import { getPlanMonitoringFrequency } from "@/lib/billing/plan-monitoring";
+import { getWebsiteUptimeHistory, getWebsiteUptimeSnapshot } from "@/lib/db/uptime";
 import { SeoCrawlIntelligenceSection } from "@/components/dashboard/SeoCrawlIntelligenceSection";
 import {
   getLatestSeoCrawlRun,
@@ -69,9 +70,10 @@ import {
 } from "@/components/dashboard/SiteCommandCenterDashboard";
 import { ReputationPulsePanel } from "@/components/dashboard/ReputationPulsePanel";
 import { ReputationPulseTeaser } from "@/components/dashboard/ReputationPulseTeaser";
+import { SiteSignalSummaryCard } from "@/components/dashboard/SiteSignalSummaryCard";
 import { getSocialMentionsNeedingAttention, getSocialWatchTermsForSite } from "@/lib/social/socialMentionService";
 import { buildOverviewBriefing, type OverviewBriefing } from "@/services/overviewBriefingService";
-import { syncSiteStateFromCurrentData } from "@/services/siteStateService";
+import { getSiteIntelligenceState } from "@/services/siteStateService";
 import { buildAnalyticsInsightReport } from "@/services/analyticsInsightEngine";
 import { buildSiteIntelligenceReport } from "@/services/siteIntelligenceEngine";
 
@@ -82,6 +84,25 @@ function compactDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "Not run yet";
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function highestRecommendationPriority(candidates: WebsiteRecommendationsInput["recommended_priority_context"]["candidates"]): RecommendationPriority {
+  if (candidates.some((c) => c.priority === "critical")) return "critical";
+  if (candidates.some((c) => c.priority === "high")) return "high";
+  if (candidates.some((c) => c.priority === "medium")) return "medium";
+  return "low";
+}
+
+function changeDirectionFlag(metrics: ChangeImpactNarrativeInput["metric_deltas"]): "positive" | "negative" | "mixed" | "neutral" {
+  const sessionMoved = Math.abs(metrics.sessions_percent_change) >= 10;
+  const pageviewMoved = Math.abs(metrics.pageviews_percent_change) >= 10;
+  if (!sessionMoved && !pageviewMoved) return "neutral";
+  const positives = [metrics.sessions_percent_change, metrics.pageviews_percent_change].filter((v) => v >= 10).length;
+  const negatives = [metrics.sessions_percent_change, metrics.pageviews_percent_change].filter((v) => v <= -10).length;
+  if (positives > 0 && negatives > 0) return "mixed";
+  if (positives > 0) return "positive";
+  if (negatives > 0) return "negative";
+  return "neutral";
 }
 
 function relativeTime(iso: string | null | undefined, fallback = "Not run yet"): string {
@@ -143,14 +164,6 @@ export default async function SiteDetailPage({ params }: Props) {
   const canUseReputationPulse = canUseFeature(billing.accountKind, "reputationPulse");
   const showReputationPulseTeaser = shouldShowFeature(billing.accountKind, "reputationPulseTeaser");
 
-  await ensureUptimeCheckForWebsite({
-    websiteId: site.id,
-    userId: session.user.id,
-    frequencyMinutes: getPlanMonitoringFrequency(billing.accountKind),
-  }).catch((err) => {
-    console.error("[site-detail] failed to ensure uptime check", { siteId: site.id, err });
-  });
-
   const [
     analytics,
     liveActivity,
@@ -180,13 +193,7 @@ export default async function SiteDetailPage({ params }: Props) {
   const lastSeoLabel = relativeTime(crawlSnapshot?.created_at, "No SEO crawl yet");
   const lastUptimeLabel = relativeTime(uptimeSnapshot?.lastCheckedAt, "No uptime check yet");
   const dashboardLoadedLabel = relativeTime(siteTrendsInitial.generatedAt, "Loaded just now");
-  const siteState = await syncSiteStateFromCurrentData({
-    siteId: site.id,
-    analytics,
-    uptimeSnapshot,
-    latestCrawl: crawlSnapshot,
-    socialMentions: socialMentionsNeedingAttention,
-  });
+  const siteState = await getSiteIntelligenceState(site.id);
   const analyticsInsights = buildAnalyticsInsightReport({
     analytics,
     summary: siteState.analytics.summary,
@@ -204,11 +211,9 @@ export default async function SiteDetailPage({ params }: Props) {
   let insights = emptyWebsiteInsightsForFreePlan();
   let flaggedActivity: Awaited<ReturnType<typeof getWebsiteFlaggedActivity>> = [];
   let threatLeaderboard = emptyWebsiteThreatLeaderboard();
-  let aiSummary: Awaited<ReturnType<typeof generateWebsiteAiSummary>> | null = null;
-  let latestAnomaly: (typeof insights.anomalies)[0] | null = null;
-  let spikeExplanation: Awaited<ReturnType<typeof generateSpikeExplanation>> | null = null;
-  let changeNarrative: Awaited<ReturnType<typeof generateChangeImpactNarrative>> | null = null;
-  let recommendations: Awaited<ReturnType<typeof generateWebsiteRecommendations>> | null = null;
+  let spikeExplanation: ReturnType<typeof buildFallbackSpikeExplanation> | null = null;
+  let changeNarrative: ReturnType<typeof buildFallbackChangeImpactNarrative> | null = null;
+  let recommendations: ReturnType<typeof buildFallbackWebsiteRecommendations> | null = null;
   let alertCenter: WebsiteAlertCenterData = {
     website_id: site.id,
     website_name: site.name,
@@ -232,34 +237,186 @@ export default async function SiteDetailPage({ params }: Props) {
       getWebsiteFlaggedActivity(site.id, 10, threatOverview),
       getWebsiteThreatLeaderboard(site.id, threatOverview),
     ]);
-    aiSummary = await generateWebsiteAiSummary(
-      buildWebsiteSummaryInput({
-        websiteName: site.name,
-        analytics,
-        insights,
-        threatOverview,
-        changeImpacts,
-      }),
-    );
-    latestAnomaly = insights.anomalies[0] ?? null;
-    spikeExplanation = latestAnomaly
-      ? await generateSpikeExplanation(site.id, latestAnomaly.date, latestAnomaly)
-      : null;
+    const lcp = analytics.vitalAverages.find((v) => v.metric.toUpperCase() === "LCP")?.average ?? null;
+    const cls = analytics.vitalAverages.find((v) => v.metric.toUpperCase() === "CLS")?.average ?? null;
+    const inp = analytics.vitalAverages.find((v) => v.metric.toUpperCase() === "INP")?.average ?? null;
+    const problematicMetrics = [
+      lcp != null && lcp > 2500 ? "LCP" : null,
+      cls != null && cls > 0.1 ? "CLS" : null,
+      inp != null && inp > 200 ? "INP" : null,
+    ].filter((metric): metric is string => Boolean(metric));
     const latestChange = changeImpacts[0] ?? null;
-    changeNarrative = latestChange
-      ? await generateChangeImpactNarrative(latestChange.change_log_id)
-      : null;
-    recommendations = await generateWebsiteRecommendations(site.id);
+    const latestAnomaly = insights.anomalies[0] ?? null;
+    if (latestAnomaly) {
+      const factors = insights.latest_spike_explanation?.factors ?? [];
+      const spikeInput: SpikeExplanationInput = {
+        website_name: site.name,
+        target_date: latestAnomaly.date,
+        anomaly_type: latestAnomaly.anomaly_type,
+        metric_focus: latestAnomaly.metric_type,
+        current_metrics: {
+          sessions: latestAnomaly.metric_type === "sessions" ? latestAnomaly.actual_value : 0,
+          pageviews: latestAnomaly.metric_type === "pageviews" ? latestAnomaly.actual_value : 0,
+          events: latestAnomaly.metric_type === "events" ? latestAnomaly.actual_value : 0,
+          conversions: null,
+        },
+        baseline_metrics: {
+          sessions: latestAnomaly.metric_type === "sessions" ? latestAnomaly.baseline_value : 0,
+          pageviews: latestAnomaly.metric_type === "pageviews" ? latestAnomaly.baseline_value : 0,
+          events: latestAnomaly.metric_type === "events" ? latestAnomaly.baseline_value : 0,
+          conversions: null,
+        },
+        metric_deltas: {
+          sessions_pct: latestAnomaly.metric_type === "sessions" ? latestAnomaly.percent_change : 0,
+          pageviews_pct: latestAnomaly.metric_type === "pageviews" ? latestAnomaly.percent_change : 0,
+          events_pct: latestAnomaly.metric_type === "events" ? latestAnomaly.percent_change : 0,
+          conversions_pct: null,
+        },
+        top_page_deltas: factors
+          .filter((factor) => factor.type === "page")
+          .slice(0, 3)
+          .map((factor) => ({
+            path: factor.label,
+            current: factor.metric_value ?? 0,
+            baseline: factor.baseline_value ?? 0,
+            percent_change: factor.percent_change ?? 0,
+          })),
+        top_event_deltas: factors
+          .filter((factor) => factor.type === "event")
+          .slice(0, 3)
+          .map((factor) => ({
+            event_name: factor.label,
+            current: factor.metric_value ?? 0,
+            baseline: factor.baseline_value ?? 0,
+            percent_change: factor.percent_change ?? 0,
+          })),
+        uptime_signals:
+          analytics.uptime.checks24h > analytics.uptime.checksUp24h
+            ? [`${analytics.uptime.checks24h - analytics.uptime.checksUp24h} failed uptime check(s) in the last 24h.`]
+            : [],
+        threat_signals: threatOverview.top_risk_reasons.slice(0, 2),
+        change_signals: latestChange ? [`Recent change: ${latestChange.title}`] : [],
+        source_signals: [],
+        strongest_factors: factors.length
+          ? factors.slice(0, 4).map((factor) => factor.description)
+          : insights.key_points.slice(0, 4),
+      };
+      spikeExplanation = buildFallbackSpikeExplanation(spikeInput, "deferred_ai_for_fast_page_load");
+    }
+    if (latestChange) {
+      const changeMetrics = latestChange.metrics;
+      const changeDeltas: ChangeImpactNarrativeInput["metric_deltas"] = {
+        sessions_before: changeMetrics.sessions_before,
+        sessions_after: changeMetrics.sessions_after,
+        sessions_percent_change: changeMetrics.sessions_percent_change,
+        pageviews_before: changeMetrics.pageviews_before,
+        pageviews_after: changeMetrics.pageviews_after,
+        pageviews_percent_change: changeMetrics.pageviews_percent_change,
+        events_before: changeMetrics.events_before,
+        events_after: changeMetrics.events_after,
+        events_percent_change: changeMetrics.events_percent_change,
+        conversions_before: changeMetrics.conversions_before,
+        conversions_after: changeMetrics.conversions_after,
+        conversions_percent_change: changeMetrics.conversions_percent_change,
+      };
+      changeNarrative = buildFallbackChangeImpactNarrative(
+        {
+          website_name: site.name,
+          change_log: {
+            id: latestChange.change_log_id,
+            title: latestChange.title,
+            description: latestChange.summary,
+            change_type: latestChange.change_type,
+            created_at: latestChange.created_at,
+            source: "stored-change-impact",
+            metadata: {},
+          },
+          impact_window: {
+            baseline_start: "Stored baseline window",
+            baseline_end: latestChange.created_at,
+            post_start: latestChange.created_at,
+            post_end: "Stored post-change window",
+            window_hours: 24,
+          },
+          metric_deltas: changeDeltas,
+          top_page_deltas: latestChange.notable_differences.filter((item) => item.startsWith("Page ")),
+          top_event_deltas: latestChange.notable_differences.filter((item) => item.startsWith("Event ")),
+          uptime_signals:
+            changeMetrics.uptime_failures_after > changeMetrics.uptime_failures_before
+              ? ["Uptime failures increased after this change."]
+              : [],
+          threat_signals:
+            changeMetrics.risk_sessions_after != null &&
+            changeMetrics.risk_sessions_before != null &&
+            changeMetrics.risk_sessions_after > changeMetrics.risk_sessions_before
+              ? ["Risky sessions increased after this change."]
+              : [],
+          anomaly_signals: insights.anomalies.slice(0, 2).map((anomaly) => `${anomaly.anomaly_type} on ${anomaly.date}`),
+          strongest_factors: latestChange.notable_differences.slice(0, 5),
+          impact_flags: [...latestChange.flags, changeDirectionFlag(changeDeltas)],
+        },
+        "deferred_ai_for_fast_page_load",
+      );
+    }
+    const recommendationBase: Omit<WebsiteRecommendationsInput, "recommended_priority_context"> = {
+      website_name: site.name,
+      summary_signals: {
+        sessions_24h: analytics.overview.sessions24h,
+        pageviews_24h: analytics.overview.pageviews24h,
+        events_24h: analytics.overview.events24h,
+        unique_visitors_24h: analytics.overview.uniqueVisitors24h,
+        anomalies_count: insights.anomalies.length,
+      },
+      performance_signals: {
+        lcp_avg: lcp,
+        cls_avg: cls,
+        inp_avg: inp,
+        problematic_metrics: problematicMetrics,
+        top_affected_pages: analytics.topPages.slice(0, 3).map((p) => p.path),
+      },
+      uptime_signals: {
+        has_checks: analytics.uptime.hasChecks24h,
+        uptime_pct_24h: analytics.uptime.uptimePct24h,
+        failed_checks_24h: analytics.uptime.checks24h - analytics.uptime.checksUp24h,
+      },
+      threat_signals: {
+        flagged_sessions: threatOverview.total_flagged_sessions,
+        high_risk_sessions: threatOverview.high_risk_sessions,
+        top_reasons: threatOverview.top_risk_reasons.slice(0, 4),
+        risky_paths: threatLeaderboard.risky_paths.slice(0, 4).map((p) => p.path),
+      },
+      change_signals: {
+        latest_change_title: latestChange?.title ?? null,
+        latest_change_flags: latestChange?.flags ?? [],
+        latest_change_summary: latestChange?.summary ?? null,
+      },
+      conversion_signals: {
+        has_conversion_data: latestChange?.metrics.conversions_before != null,
+        conversion_change_pct: latestChange?.metrics.conversions_percent_change ?? null,
+      },
+      strongest_issues: [
+        ...insights.key_points.slice(0, 2),
+        ...threatOverview.top_risk_reasons.slice(0, 2).map((r) => `Threat reason: ${r}`),
+      ].slice(0, 5),
+      strongest_opportunities: analytics.topPages
+        .slice(0, 3)
+        .map((p) => `Top page opportunity: ${p.path}`),
+    };
+    const recommendationCandidates = prioritizeWebsiteRecommendations(recommendationBase);
+    recommendations = buildFallbackWebsiteRecommendations({
+      ...recommendationBase,
+      recommended_priority_context: {
+        highest_priority: highestRecommendationPriority(recommendationCandidates),
+        candidates: recommendationCandidates,
+      },
+    });
     alertCenter = await getWebsiteAlertCenterData(site.id, {
+      websiteName: site.name,
       analytics,
       insights,
       threatOverview,
       threatLeaderboard,
       changeImpacts,
-    });
-    await syncWebsiteNotifications(site.id, {
-      alertCenter,
-      recommendations,
     });
     [notifications, caseWorkbench] = await Promise.all([
       getWebsiteNotifications(site.id),
@@ -474,14 +631,22 @@ export default async function SiteDetailPage({ params }: Props) {
             <SiteSeoHealth domain={site.primary_domain} analytics={analytics} />
             <SeoCrawlIntelligenceSection
               latestRun={crawlSnapshot}
+              previousHealthScore={crawlRunHistory.at(-2)?.health_score ?? null}
               topIssues={topCrawlIssues}
               crawlStatus={siteState.seo.status}
               crawlErrorMessage={siteState.seo.errorMessage}
             />
             {canUseIntelligence ? (
-              <ResponseCodeDashboardCard siteId={site.id} onPageBreakdown={onPageForReport} />
+              <ResponseCodeDashboardCard
+                siteId={site.id}
+                onPageBreakdown={onPageForReport}
+                topIssues={topCrawlIssues}
+                crawlHealthScore={crawlSnapshot?.health_score ?? null}
+              />
             ) : null}
-            {canUseIntelligence ? <AiSeoRecommendationsCard siteId={site.id} /> : null}
+            {canUseIntelligence ? (
+              <AiSeoRecommendationsCard siteId={site.id} crawlRunId={crawlSnapshot?.id ?? null} />
+            ) : null}
           </div>
         ) : null}
 
@@ -491,6 +656,8 @@ export default async function SiteDetailPage({ params }: Props) {
             watchTerms={socialWatchTerms}
             watchTermLimit={getPlanLimit(billing.accountKind, "reputationWatchTerms") ?? 0}
             mentions={socialAttentionMentions}
+            latestCheckAt={siteState.reputation.completedAt}
+            reputationSummary={siteState.reputation.summary}
           />
         ) : showReputationPulseTeaser ? (
           <ReputationPulseTeaser />
@@ -498,8 +665,21 @@ export default async function SiteDetailPage({ params }: Props) {
 
         {canUseIntelligence ? (
           <div className="space-y-6">
+            <SiteSignalSummaryCard
+              analytics={analytics}
+              insights={insights}
+              siteState={siteState}
+              threatOverview={threatOverview}
+              watchTermCount={socialWatchTerms.filter((term) => term.is_active).length}
+            />
             <SiteInsightsCard insights={insights} />
-            <ThreatOverviewCard overview={threatOverview} leaderboard={threatLeaderboard} />
+            <ThreatOverviewCard
+              overview={threatOverview}
+              leaderboard={threatLeaderboard}
+              watchTermCount={socialWatchTerms.filter((term) => term.is_active).length}
+              reputationFlaggedCount={siteState.reputation.summary?.flagged_mentions ?? 0}
+              reputationLatestCheckAt={siteState.reputation.completedAt}
+            />
             <FlaggedActivityCard items={flaggedActivity} />
           </div>
         ) : null}
@@ -507,7 +687,10 @@ export default async function SiteDetailPage({ params }: Props) {
         {canUseIntelligence ? (
           <div className="space-y-6">
             <ChangeImpactCard siteId={site.id} impacts={changeImpacts} />
-            <ChangeImpactNarrativeCard narrative={changeNarrative} />
+            <LazyChangeImpactNarrativeCard
+              changeLogId={changeImpacts[0]?.change_log_id ?? null}
+              fallback={changeNarrative}
+            />
           </div>
         ) : null}
 
@@ -528,8 +711,8 @@ export default async function SiteDetailPage({ params }: Props) {
 
         {canUseIntelligence ? (
           <div className="space-y-6">
-            {aiSummary ? <AiSummaryCard summaryResult={aiSummary} /> : null}
-            <SpikeExplanationCard explanation={spikeExplanation} />
+            <LazyAiSummaryCard websiteId={site.id} />
+            <LazySpikeExplanationCard websiteId={site.id} fallback={spikeExplanation} />
             <AlertCenterCard alerts={alertCenter.alerts} />
           </div>
         ) : null}

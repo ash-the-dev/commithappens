@@ -1,6 +1,8 @@
 import "server-only";
 import { getOpenAiClient, isOpenAiConfigured } from "@/lib/ai/client";
 
+const MODEL_TIMEOUT_MS = 6_000;
+
 export type SeoRecommendationsInput = {
   pageUrl: string;
   title: string | null;
@@ -85,30 +87,37 @@ export async function generateSeoRecommendations(
 
   try {
     const client = getOpenAiClient();
-    const response = await client.responses.create({
-      model,
-      instructions:
-        "You create practical page-level SEO recommendations for Commit Happens. Be helpful, slightly clever, and concrete. Do not recommend keyword stuffing. Do not promise rankings or traffic. Use only the supplied crawl facts. Return valid JSON only.",
-      input: [
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort("ai_generation_timeout"), MODEL_TIMEOUT_MS);
+    const response = await client.responses
+      .create(
         {
-          role: "user",
-          content: [
+          model,
+          instructions:
+            "You create practical page-level SEO recommendations for Commit Happens. Be helpful, slightly clever, and concrete. Do not recommend keyword stuffing. Do not promise rankings or traffic. Use only the supplied crawl facts. Return valid JSON only.",
+          input: [
             {
-              type: "input_text",
-              text: `Generate SEO recommendations for this crawled page:\n${JSON.stringify(input)}`,
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: `Generate SEO recommendations for this crawled page:\n${JSON.stringify(input)}`,
+                },
+              ],
             },
           ],
+          text: {
+            format: {
+              type: "json_schema",
+              name: "seo_page_recommendations",
+              schema: SEO_RECOMMENDATIONS_SCHEMA,
+              strict: true,
+            },
+          },
         },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "seo_page_recommendations",
-          schema: SEO_RECOMMENDATIONS_SCHEMA,
-          strict: true,
-        },
-      },
-    });
+        { signal: controller.signal },
+      )
+      .finally(() => clearTimeout(timeout));
 
     const raw = response.output_text;
     if (!raw?.trim()) return null;

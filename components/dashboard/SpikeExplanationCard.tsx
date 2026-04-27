@@ -20,7 +20,15 @@ export function SpikeExplanationCard({ explanation }: Props) {
         title="Anything weird?"
         subtitle="If traffic does a cartwheel, we’ll tell you — calmly, with receipts."
       >
-        <p className="text-sm text-slate-700">Nope. Nothing dramatic. Your site is behaving (for now).</p>
+        <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+          <p className="text-sm font-semibold text-slate-950">🛡️ No weirdness detected. Tiny miracle. Keep monitoring after major updates.</p>
+          <p className="mt-2 text-sm text-slate-700">
+            <span className="font-semibold">Why it matters:</span> no spike or drop is worth explaining from the stored data right now.
+          </p>
+          <p className="mt-2 text-sm text-slate-700">
+            <span className="font-semibold">Do this next:</span> check again after campaigns, deploys, or suspicious traffic bursts.
+          </p>
+        </div>
       </DashboardSection>
     );
   }
@@ -38,7 +46,7 @@ export function SpikeExplanationCard({ explanation }: Props) {
               d.severity,
             )}`}
           >
-            {d.severity}
+            {d.severity === "high" ? "🚨 " : d.severity === "medium" ? "⚡ " : "📡 "}{d.severity}
           </span>
           <span className="rounded-full border border-slate-200/90 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
             {explanation.source === "ai" ? "AI read" : "Auto read"}

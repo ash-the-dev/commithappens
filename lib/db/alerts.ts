@@ -324,6 +324,7 @@ export function buildWebsitePlaybooks(
 }
 
 type PreloadedSignals = {
+  websiteName?: string;
   analytics?: SiteAnalytics;
   insights?: WebsiteInsights;
   threatOverview?: WebsiteThreatOverview;
@@ -361,9 +362,11 @@ export async function getWebsiteAlertCenterData(
 ): Promise<WebsiteAlertCenterData> {
   const pool = getPool();
   const [nameRes, alerts] = await Promise.all([
-    pool.query<{ name: string }>(`SELECT name FROM websites WHERE id = $1::uuid LIMIT 1`, [
-      websiteId,
-    ]),
+    preloaded?.websiteName
+      ? Promise.resolve({ rows: [{ name: preloaded.websiteName }] })
+      : pool.query<{ name: string }>(`SELECT name FROM websites WHERE id = $1::uuid LIMIT 1`, [
+          websiteId,
+        ]),
     detectWebsiteAlerts(websiteId, preloaded),
   ]);
   return {

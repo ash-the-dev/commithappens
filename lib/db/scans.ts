@@ -574,7 +574,7 @@ export async function recordCompletedScan<T extends ScanType>(input: {
   assertCompleteSummary(input.scanType, input.resultSummary);
 
   const pool = getPool();
-  await pool.query(
+  const result = await pool.query(
     `INSERT INTO scans (site_id, scan_type, status, started_at, completed_at, result_summary, raw_result, source, created_at, updated_at)
      VALUES ($1::uuid, $2, 'complete', $3::timestamptz, $3::timestamptz, $4::jsonb, $5::jsonb, $6, now(), now())
      ON CONFLICT (site_id, scan_type, completed_at)
@@ -583,7 +583,12 @@ export async function recordCompletedScan<T extends ScanType>(input: {
        result_summary = EXCLUDED.result_summary,
        raw_result = EXCLUDED.raw_result,
        source = EXCLUDED.source,
-       updated_at = now()`,
+       updated_at = now()
+     WHERE scans.status IS DISTINCT FROM 'complete'
+        OR scans.result_summary IS DISTINCT FROM EXCLUDED.result_summary
+        OR scans.raw_result IS DISTINCT FROM EXCLUDED.raw_result
+        OR scans.source IS DISTINCT FROM EXCLUDED.source
+     RETURNING id`,
     [
       input.siteId,
       input.scanType,
@@ -593,11 +598,13 @@ export async function recordCompletedScan<T extends ScanType>(input: {
       input.source ?? null,
     ],
   );
-  console.info("[scans] recorded completed scan", {
-    siteId: input.siteId,
-    scanType: input.scanType,
-    completedAt,
-  });
+  if ((result.rowCount ?? 0) > 0) {
+    console.info("[scans] recorded completed scan", {
+      siteId: input.siteId,
+      scanType: input.scanType,
+      completedAt,
+    });
+  }
 }
 
 export async function getLatestCompletedScans(siteId: string): Promise<Partial<{

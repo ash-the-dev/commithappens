@@ -8,6 +8,7 @@ const tbtn = "h-4 w-4 min-h-4 min-w-4 text-[8px] border-slate-300 bg-slate-100 t
 
 type Props = {
   latestRun: SeoCrawlRunRow | null;
+  previousHealthScore?: number | null;
   topIssues: SeoCrawlTopIssue[];
   crawlStatus?: "ready" | "missing" | "running" | "failed";
   crawlErrorMessage?: string | null;
@@ -18,6 +19,7 @@ type Props = {
  */
 export function SeoCrawlIntelligenceSection({
   latestRun,
+  previousHealthScore = null,
   topIssues,
   crawlStatus = "missing",
   crawlErrorMessage = null,
@@ -65,16 +67,16 @@ export function SeoCrawlIntelligenceSection({
     <div className="space-y-5">
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <p className="min-w-0 text-xs text-slate-600 sm:flex-1 sm:pr-2">
-          <span className="font-semibold text-slate-900">SEO crawl &amp; report</span> — Crawl complete. Showing the
-          latest validated run, health score, and the first fixes worth touching.
+          <span className="font-semibold text-slate-900">SEO crawl &amp; report</span> — No drama. This crawl moved in
+          the right direction. You’re stabilizing.
         </p>
         <div className="flex w-full shrink-0 items-center justify-end gap-3 sm:w-auto sm:justify-end">
           <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("seo_crawl_section")} />
         </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <SeoCrawlHealthCard run={latestRun} />
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <SeoCrawlHealthCard run={latestRun} previousHealthScore={previousHealthScore} />
+        <div className="rounded-2xl border border-slate-900 bg-slate-950 p-5 shadow-sm sm:p-6">
           <SeoCrawlTopFixesPanel issues={topIssues} />
         </div>
       </div>

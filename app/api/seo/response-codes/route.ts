@@ -88,10 +88,36 @@ export async function GET(request: Request): Promise<Response> {
        FROM response_code_reports
        WHERE crawl_run_id = $1::uuid
        ORDER BY created_at DESC
-       LIMIT 2`,
+       LIMIT 1`,
       [latestRun.id],
     );
-    const rows = result.rows;
+    const fallbackResult =
+      result.rowCount && result.rowCount > 0
+        ? { rows: [] as Array<{ report_json: unknown; created_at: string }> }
+        : await pool.query<{ report_json: unknown; created_at: string }>(
+            `SELECT report_json, created_at::text
+             FROM response_code_reports
+             WHERE site_id = $1::text
+             ORDER BY created_at DESC
+             LIMIT 2`,
+            [siteId],
+          );
+    const previousResult =
+      result.rowCount && result.rowCount > 0
+        ? await pool.query<{ report_json: unknown; created_at: string }>(
+            `SELECT report_json, created_at::text
+             FROM response_code_reports
+             WHERE site_id = $1::text
+               AND crawl_run_id IS DISTINCT FROM $2::uuid
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [siteId, latestRun.id],
+          )
+        : { rows: [] as Array<{ report_json: unknown; created_at: string }> };
+    const rows =
+      result.rowCount && result.rowCount > 0
+        ? [...result.rows, ...previousResult.rows]
+        : fallbackResult.rows;
     const current = coerceReport(rows[0]?.report_json ?? null);
     const previous = rows[1]?.report_json
       ? coerceReport(rows[1].report_json)

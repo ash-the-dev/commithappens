@@ -46,6 +46,7 @@ export function AnalystChatCard({ websiteId }: Props) {
         body: JSON.stringify({
           website_id: websiteId,
           question: nextQuestion,
+          current_tab: window.location.hash.replace(/^#/, "") || null,
         }),
       });
       const json = (await res.json()) as ApiResponse;

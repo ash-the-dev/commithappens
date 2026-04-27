@@ -1,5 +1,5 @@
 import "server-only";
-import { getFastAiModel, getPrimaryAiModel } from "@/lib/ai/models";
+import { getFastAiModel } from "@/lib/ai/models";
 import { getOpenAiClient, isOpenAiConfigured } from "@/lib/ai/client";
 import {
   validateWebsiteAiSummaryOutput,
@@ -12,6 +12,7 @@ import type {
 } from "@/lib/ai/types";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const MODEL_TIMEOUT_MS = 6_000;
 const summaryCache = new Map<
   string,
   { expiresAt: number; value: WebsiteAiSummaryResult }
@@ -92,32 +93,36 @@ export function buildFallbackWebsiteSummary(
 async function callSummaryModel(
   model: string,
   input: WebsiteAiSummaryInput,
+  signal?: AbortSignal,
 ): Promise<WebsiteAiSummaryOutput> {
   const client = getOpenAiClient();
-  const response = await client.responses.create({
-    model,
-    instructions:
-      "You summarize CommitHappens dashboard data for indie builders in plain English. Be direct, smart, slightly playful, and useful. Avoid enterprise jargon. Use only provided facts. Do not invent causes. Keep it concise and return only valid JSON matching the schema.",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Summarize this dashboard payload:\n${JSON.stringify(input)}`,
-          },
-        ],
-      },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "website_ai_summary",
-        schema: WEBSITE_AI_SUMMARY_JSON_SCHEMA,
-        strict: true,
+  const response = await client.responses.create(
+    {
+      model,
+      instructions:
+        "You summarize CommitHappens dashboard data for indie builders in plain English. Be direct, smart, slightly playful, and useful. Avoid enterprise jargon. Use only provided facts. Do not invent causes. Keep it concise and return only valid JSON matching the schema.",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Summarize this dashboard payload:\n${JSON.stringify(input)}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "website_ai_summary",
+          schema: WEBSITE_AI_SUMMARY_JSON_SCHEMA,
+          strict: true,
+        },
       },
     },
-  });
+    { signal },
+  );
 
   const raw = response.output_text;
   if (!raw || raw.trim().length === 0) {
@@ -136,6 +141,24 @@ async function callSummaryModel(
   return validated.data;
 }
 
+async function callSummaryModelWithTimeout(
+  model: string,
+  input: WebsiteAiSummaryInput,
+): Promise<WebsiteAiSummaryOutput> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("ai_generation_timeout"), MODEL_TIMEOUT_MS);
+  try {
+    return await callSummaryModel(model, input, controller.signal);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error("ai_generation_timeout");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function generateWebsiteAiSummary(
   input: WebsiteAiSummaryInput,
 ): Promise<WebsiteAiSummaryResult> {
@@ -149,11 +172,11 @@ export async function generateWebsiteAiSummary(
     return buildFallbackWebsiteSummary(input, "openai_not_configured");
   }
 
-  const models = [getPrimaryAiModel(), getFastAiModel()];
+  const models = [getFastAiModel()];
   let lastError = "ai_generation_failed";
   for (const model of models) {
     try {
-      const data = await callSummaryModel(model, input);
+      const data = await callSummaryModelWithTimeout(model, input);
       const result: WebsiteAiSummaryResult = {
         source: "ai",
         model,

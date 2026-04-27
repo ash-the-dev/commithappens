@@ -14,11 +14,16 @@ import { buildSpikeExplanationInput } from "@/lib/ai/build-spike-explanation-inp
 import { buildChangeImpactNarrativeInput } from "@/lib/ai/build-change-impact-narrative-input";
 import { buildRecommendedActionsInput } from "@/lib/ai/build-recommended-actions-input";
 import { getOpenAiClient, isOpenAiConfigured } from "@/lib/ai/client";
-import { getFastAiModel, getPrimaryAiModel } from "@/lib/ai/models";
+import { getFastAiModel } from "@/lib/ai/models";
 import {
   DASHBOARD_ANSWER_JSON_SCHEMA,
   validateDashboardAnswerOutput,
 } from "@/lib/ai/schemas";
+import {
+  buildPatternResponse,
+  patternToDashboardAnswer,
+  type AiResponsePatternKey,
+} from "@/services/aiResponsePatterns";
 import type {
   DashboardAnswerOutput,
   DashboardAnswerResult,
@@ -27,6 +32,8 @@ import type {
   WebsiteAiSummaryInput,
   WebsiteRecommendationsInput,
 } from "@/lib/ai/types";
+
+const MODEL_TIMEOUT_MS = 6_000;
 
 const QA_CACHE_TTL_MS = 3 * 60 * 1000;
 const qaCache = new Map<string, { expiresAt: number; value: DashboardAnswerResult }>();
@@ -40,6 +47,10 @@ const SUGGESTED_INTENTS: DashboardQuestionIntent[] = [
   "performance_analysis",
   "uptime_analysis",
 ];
+
+type DashboardQaOptions = {
+  currentTab?: string | null;
+};
 
 function normalizeQuestion(question: string): string {
   return question.trim().toLowerCase().replace(/\s+/g, " ");
@@ -126,6 +137,7 @@ function yesterdayIsoDay(): string {
 
 type SharedData = {
   websiteName: string;
+  websiteDomain: string | null;
   summaryInput: WebsiteAiSummaryInput;
   recommendationsInput: WebsiteRecommendationsInput;
   anomalies: DashboardQuestionEvidence["anomalies"];
@@ -142,10 +154,14 @@ async function gatherSharedData(
   websiteId: string,
   question: string,
 ): Promise<SharedData> {
-  const [analytics, threatOverview, changeImpacts] = await Promise.all([
+  const [analytics, threatOverview, changeImpacts, websiteResult] = await Promise.all([
     getSiteAnalytics(websiteId),
     getWebsiteThreatOverview(websiteId),
     getWebsiteChangeImpacts(websiteId),
+    getPool().query<{ primary_domain: string | null }>(
+      `SELECT primary_domain FROM websites WHERE id = $1::uuid LIMIT 1`,
+      [websiteId],
+    ),
   ]);
   const [insights, threatLeaderboard, recommendationsInput] = await Promise.all([
     getWebsiteInsights(websiteId, threatOverview),
@@ -168,6 +184,7 @@ async function gatherSharedData(
 
   return {
     websiteName: recommendationsInput.website_name,
+    websiteDomain: websiteResult.rows[0]?.primary_domain ?? null,
     summaryInput: buildWebsiteSummaryInput({
       websiteName: recommendationsInput.website_name,
       analytics,
@@ -205,6 +222,7 @@ async function gatherSharedData(
 export async function routeDashboardQuestion(
   question: string,
   websiteId: string,
+  options: DashboardQaOptions = {},
 ): Promise<DashboardQuestionEvidence> {
   const normalized = normalizeQuestion(question);
   const intent = classifyDashboardQuestion(question);
@@ -213,10 +231,12 @@ export async function routeDashboardQuestion(
 
   return {
     website_name: shared.websiteName,
+    website_domain: shared.websiteDomain ?? undefined,
     question: question.trim(),
     normalized_question: normalized,
     intent,
     time_scope: scope,
+    current_tab: options.currentTab ?? null,
     summary: shared.summaryInput,
     anomalies: shared.anomalies,
     latest_spike: shared.latestSpikeInput,
@@ -232,6 +252,149 @@ export async function routeDashboardQuestion(
     uptime: shared.uptime,
     performance: shared.performance,
   };
+}
+
+function priorityFromCandidate(priority: string): "critical" | "high" | "medium" | "low" | "none" {
+  if (priority === "critical" || priority === "high" || priority === "medium" || priority === "low") {
+    return priority;
+  }
+  return "none";
+}
+
+function buildPatternDashboardAnswer(
+  intent: DashboardQuestionIntent,
+  evidence: DashboardQuestionEvidence,
+): DashboardAnswerOutput | null {
+  const siteLabel = evidence.website_domain || evidence.website_name;
+  const traffic = evidence.summary.summary_24h;
+  const priorityCandidates = evidence.recommendations.recommended_priority_context.candidates;
+  const urgent = priorityCandidates
+    .filter((candidate) => candidate.priority === "critical" || candidate.priority === "high")
+    .slice(0, 3);
+  const topCandidate = urgent[0] ?? priorityCandidates[0] ?? null;
+  const basedOn = [
+    `${siteLabel}: ${traffic.sessions} sessions, ${traffic.pageviews} pageviews, ${traffic.events} events in 24h.`,
+    `${evidence.uptime.checks_24h} uptime checks with ${evidence.uptime.failures_24h} failure(s) in 24h.`,
+    `${evidence.threat.total_flagged_sessions} flagged session(s), ${evidence.threat.high_risk_sessions} high-risk.`,
+    `${evidence.anomalies.length} recent anomaly signal(s).`,
+    ...(evidence.performance.top_pages[0] ? [`Top page: ${evidence.performance.top_pages[0].path}.`] : []),
+    ...(evidence.current_tab ? [`Asked from dashboard context: ${evidence.current_tab}.`] : []),
+  ];
+
+  if (intent === "summary") {
+    const pattern: AiResponsePatternKey =
+      traffic.sessions <= 0
+        ? "no_data"
+        : evidence.anomalies.some((a) => a.anomaly_type === "drop")
+          ? "negative_trend"
+          : traffic.sessions > 0
+            ? "positive_trend"
+            : "all_clear";
+    const noTraffic =
+      "Traffic data is quiet right now. Either the tracker is new, not installed yet, or your site is having a very private little party.";
+    const response = buildPatternResponse({
+      pattern,
+      seed: `${siteLabel}:summary:${traffic.sessions}:${evidence.anomalies.length}`,
+      what:
+        traffic.sessions <= 0
+          ? noTraffic
+          : `${siteLabel} had ${traffic.sessions} session${traffic.sessions === 1 ? "" : "s"} and ${traffic.pageviews} pageview${traffic.pageviews === 1 ? "" : "s"} in the last 24 hours. ${evidence.anomalies.length} recent anomaly signal${evidence.anomalies.length === 1 ? "" : "s"} are on the board.`,
+      why:
+        traffic.sessions <= 0
+          ? "Without traffic, I can confirm setup signals but not visitor behavior. No fake prophecy today."
+          : "Traffic plus uptime and risk signals tell us whether visitors can arrive, move around, and avoid weird little blockers.",
+      next: topCandidate
+        ? `Start here: ${topCandidate.suggested_action}`
+        : "Start by checking the top page and making sure the primary call-to-action is obvious.",
+      checklist: [
+        topCandidate?.suggested_action ?? "Confirm the tracker is installed on the live pages you care about.",
+        "Review the top traffic page first.",
+        "Check uptime failures before polishing copy.",
+      ],
+      priority: topCandidate ? priorityFromCandidate(topCandidate.priority) : "low",
+      confidence: traffic.sessions <= 0 ? "needs more data" : "stored data",
+      basedOn,
+    });
+    return patternToDashboardAnswer({ pattern: response, evidence, intent, sourceLabel: "fallback" });
+  }
+
+  if (intent === "recommendations") {
+    const response = buildPatternResponse({
+      pattern: urgent.length > 1 ? "multiple_issues" : urgent.length === 1 ? "critical_issue" : "improvement_opportunity",
+      seed: `${siteLabel}:recommendations:${topCandidate?.title ?? "none"}`,
+      what: topCandidate
+        ? `The top priority is "${topCandidate.title}" because ${topCandidate.rationale.toLowerCase()}`
+        : "No critical issue is standing on the table yelling right now.",
+      why: topCandidate
+        ? "Fixing the highest-impact item first keeps limited crawl and review time from getting spent on decorative nonsense."
+        : "When nothing critical is flagged, the best move is tightening the pages and actions that already get attention.",
+      next: topCandidate
+        ? `Fix this before anything else: ${topCandidate.suggested_action}`
+        : "This can wait: save deep polish for after you confirm traffic, uptime, and primary page clarity are healthy.",
+      checklist: [
+        ...urgent.map((candidate) => candidate.suggested_action),
+        ...priorityCandidates.filter((candidate) => candidate.priority === "medium").map((candidate) => candidate.suggested_action),
+      ].slice(0, 5),
+      priority: topCandidate ? priorityFromCandidate(topCandidate.priority) : "low",
+      confidence: "stored data",
+      basedOn: [...basedOn, ...evidence.recommendations.strongest_issues.slice(0, 2)],
+    });
+    return patternToDashboardAnswer({ pattern: response, evidence, intent, sourceLabel: "fallback" });
+  }
+
+  if (intent === "uptime_analysis") {
+    const hasFailures = evidence.uptime.has_checks && evidence.uptime.failures_24h > 0;
+    const response = buildPatternResponse({
+      pattern: hasFailures ? "critical_issue" : evidence.uptime.has_checks ? "positive_trend" : "no_data",
+      seed: `${siteLabel}:uptime:${evidence.uptime.failures_24h}`,
+      what: evidence.uptime.has_checks
+        ? `${siteLabel} has ${evidence.uptime.checks_24h} stored uptime check${evidence.uptime.checks_24h === 1 ? "" : "s"} in 24h with ${evidence.uptime.failures_24h} failure${evidence.uptime.failures_24h === 1 ? "" : "s"} and ${evidence.uptime.uptime_pct_24h.toFixed(2)}% uptime.`
+        : "Uptime data is not available yet, so I cannot claim the site stayed reachable.",
+      why: hasFailures
+        ? "Availability comes before SEO sparkle. If people or crawlers hit a dead site, the rest of the polish gets ignored."
+        : "Reliable uptime means users and search engines can actually reach the site. Stable but invisible is still a problem, but stable is the first win.",
+      next: hasFailures
+        ? "Start here: compare the failed-check windows against traffic drops, deploys, and hosting logs."
+        : "Next step: keep uptime clean, then use SEO Crawl to make sure the reachable pages are also understandable.",
+      checklist: [
+        hasFailures ? "Open the failed uptime windows." : "Confirm the primary URL is covered by monitoring.",
+        "Compare failures with recent deploys or DNS changes.",
+        "Check the homepage and top page from a private browser window.",
+      ],
+      priority: hasFailures ? "critical" : "low",
+      confidence: evidence.uptime.has_checks ? "stored data" : "needs more data",
+      basedOn,
+    });
+    return patternToDashboardAnswer({ pattern: response, evidence, intent, sourceLabel: "fallback" });
+  }
+
+  if (intent === "threat_analysis") {
+    const hasMentions = evidence.threat.total_flagged_sessions > 0;
+    const response = buildPatternResponse({
+      pattern: hasMentions ? "issue_detected" : "all_clear",
+      seed: `${siteLabel}:threat:${evidence.threat.total_flagged_sessions}`,
+      what: hasMentions
+        ? `${evidence.threat.total_flagged_sessions} flagged session${evidence.threat.total_flagged_sessions === 1 ? "" : "s"} showed up, including ${evidence.threat.high_risk_sessions} high-risk.`
+        : "No public mentions found from your watch terms yet. That’s either peaceful or suspiciously quiet. Keep watching.",
+      why: hasMentions
+        ? "Flagged sessions can point to bot behavior, weird paths, or repeated patterns that waste time and muddy analytics."
+        : "No flags means there is nothing obvious to respond to right now, which is useful because not every quiet room contains a ghost.",
+      next: hasMentions
+        ? `Start here: review ${evidence.threat.risky_paths[0] ?? "the top risky path"} and the top reason ${evidence.threat.top_risk_reasons[0] ?? "flagged by the rules"}.`
+        : "Keep watch terms fresh and review again after new public activity lands.",
+      checklist: [
+        "Review high-risk sessions first.",
+        "Look for repeated risky paths or events.",
+        "Ignore one-off weirdness unless it repeats.",
+      ],
+      priority: hasMentions ? "medium" : "none",
+      confidence: "stored data",
+      basedOn,
+    });
+    return patternToDashboardAnswer({ pattern: response, evidence, intent, sourceLabel: "fallback" });
+  }
+
+  return null;
 }
 
 export function buildFallbackDashboardAnswer(
@@ -265,6 +428,14 @@ export function buildFallbackDashboardAnswer(
         limitation_note: "Freeform or external business questions are not supported yet.",
         time_scope: evidence.time_scope,
       },
+    };
+  }
+
+  const patternAnswer = buildPatternDashboardAnswer(intent, evidence);
+  if (patternAnswer) {
+    return {
+      ...resultBase,
+      data: patternAnswer,
     };
   }
 
@@ -475,32 +646,36 @@ export function buildFallbackDashboardAnswer(
 async function callAnalystModel(
   model: string,
   evidence: DashboardQuestionEvidence,
+  signal?: AbortSignal,
 ): Promise<DashboardAnswerOutput> {
   const client = getOpenAiClient();
-  const response = await client.responses.create({
-    model,
-    instructions:
-      "You are the CommitHappens dashboard analyst. Answer using only provided evidence in plain English for indie builders. Be direct, useful, and slightly playful without being chaotic. If evidence is insufficient, say so clearly. Avoid unsupported causation claims and generic filler. Return valid JSON only.",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Question: ${evidence.question}\nIntent: ${evidence.intent}\nEvidence: ${JSON.stringify(evidence)}`,
-          },
-        ],
-      },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "dashboard_answer",
-        schema: DASHBOARD_ANSWER_JSON_SCHEMA,
-        strict: true,
+  const response = await client.responses.create(
+    {
+      model,
+      instructions:
+        "You are the Commit Happens dashboard analyst. Answer using only provided stored dashboard evidence in plain English for small business owners. Use this structure inside the answer when useful: What I’m seeing, Why it matters, What to do next, Tiny checklist, Suggested wording only when evidence supports it. Be playful but controlled, snarky but helpful, and never corporate. Do not invent scan data, do not claim a live check happened, do not expose secrets or raw stack traces, and do not mention unavailable/planned integrations. If evidence is insufficient, say so clearly. Prioritize fixes in this order when relevant: critical SEO/status errors, uptime issues, missing metadata on important pages, traffic drops, reputation flags. Return valid JSON only.",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Question: ${evidence.question}\nIntent: ${evidence.intent}\nEvidence: ${JSON.stringify(evidence)}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "dashboard_answer",
+          schema: DASHBOARD_ANSWER_JSON_SCHEMA,
+          strict: true,
+        },
       },
     },
-  });
+    { signal },
+  );
   const raw = response.output_text;
   if (!raw || raw.trim().length === 0) throw new Error("empty_ai_output");
   let parsed: unknown;
@@ -511,14 +686,57 @@ async function callAnalystModel(
   }
   const validated = validateDashboardAnswerOutput(parsed);
   if (!validated.ok) throw new Error(`invalid_schema_output:${validated.error}`);
-  return validated.data;
+  const fallback = patternToDashboardAnswer({
+    pattern: buildPatternResponse({
+      pattern: "improvement_opportunity",
+      seed: `${evidence.website_name}:${evidence.intent}:${evidence.question}`,
+      what: validated.data.answer,
+      why: validated.data.evidence_points[0] ?? "This is based on stored dashboard evidence, not a live re-check.",
+      next: validated.data.recommended_followups[0] ?? "Start with the highest-impact item listed in the dashboard.",
+      checklist: validated.data.recommended_followups,
+      priority: "medium",
+      confidence: "stored data",
+      basedOn: validated.data.evidence_points,
+    }),
+    evidence,
+    intent: validated.data.intent,
+    sourceLabel: "ai",
+    limitationNote: validated.data.limitation_note,
+  });
+  return {
+    ...validated.data,
+    sections: fallback.sections,
+    checklist: fallback.checklist,
+    priority: fallback.priority,
+    confidence: fallback.confidence,
+    basedOn: fallback.basedOn,
+  };
+}
+
+async function callAnalystModelWithTimeout(
+  model: string,
+  evidence: DashboardQuestionEvidence,
+): Promise<DashboardAnswerOutput> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("ai_generation_timeout"), MODEL_TIMEOUT_MS);
+  try {
+    return await callAnalystModel(model, evidence, controller.signal);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error("ai_generation_timeout");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function answerWebsiteQuestion(
   websiteId: string,
   question: string,
+  options: DashboardQaOptions = {},
 ): Promise<DashboardAnswerResult> {
-  const evidence = await routeDashboardQuestion(question, websiteId);
+  const evidence = await routeDashboardQuestion(question, websiteId, options);
   const key = JSON.stringify({
     websiteId,
     q: evidence.normalized_question,
@@ -527,6 +745,7 @@ export async function answerWebsiteQuestion(
     summary: evidence.summary.summary_24h,
     anomalies: evidence.anomalies.slice(0, 2),
     threat: evidence.threat.total_flagged_sessions,
+    tab: evidence.current_tab,
   });
   const cached = qaCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
@@ -539,11 +758,11 @@ export async function answerWebsiteQuestion(
     return buildFallbackDashboardAnswer(evidence.intent, evidence);
   }
 
-  const models = [getPrimaryAiModel(), getFastAiModel()];
+  const models = [getFastAiModel()];
   let lastError = "ai_generation_failed";
   for (const model of models) {
     try {
-      const data = await callAnalystModel(model, evidence);
+      const data = await callAnalystModelWithTimeout(model, evidence);
       const result: DashboardAnswerResult = {
         source: "ai",
         model,

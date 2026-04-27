@@ -231,10 +231,28 @@ export type DashboardQuestionIntent =
 
 export type DashboardQuestionEvidence = {
   website_name: string;
+  website_domain?: string;
   question: string;
   normalized_question: string;
   intent: DashboardQuestionIntent;
   time_scope: "today" | "yesterday" | "recent" | "latest" | "unknown";
+  current_tab?: string | null;
+  scans?: {
+    seo_status: "ready" | "missing" | "running" | "failed";
+    seo_error: string | null;
+    uptime_status: "ready" | "missing" | "running" | "failed";
+    analytics_status: "ready" | "missing" | "running" | "failed";
+    reputation_status: "ready" | "missing" | "running" | "failed";
+  };
+  seo?: {
+    top_issues: Array<{
+      issue_type: string;
+      issue_severity: string;
+      url: string;
+      status: number | null;
+      title: string | null;
+    }>;
+  };
   summary: WebsiteAiSummaryInput;
   anomalies: Array<{
     date: string;
@@ -275,6 +293,19 @@ export type DashboardAnswerOutput = {
   source_label: "ai" | "fallback";
   limitation_note?: string;
   time_scope?: string;
+  sections?: Array<{
+    title: string;
+    body: string;
+  }>;
+  checklist?: string[];
+  suggestedWording?: {
+    title?: string;
+    metaDescription?: string;
+    h1?: string;
+  };
+  priority?: "critical" | "high" | "medium" | "low" | "none";
+  confidence?: "stored data" | "early signal" | "needs more data";
+  basedOn?: string[];
 };
 
 export type DashboardAnswerResult = {

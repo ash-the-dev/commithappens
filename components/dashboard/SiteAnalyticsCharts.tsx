@@ -97,6 +97,30 @@ function trafficQualityNote(a: SiteAnalytics): string {
   return "Lots of repeat sessions vs visitors — worth checking if something is double-firing events or reloading aggressively.";
 }
 
+function pagesPerSession(a: SiteAnalytics): { value: number | null; label: string } {
+  if (a.overview.sessions24h <= 0) return { value: null, label: "No sessions yet, so exploration cannot be measured." };
+  const value = a.overview.pageviews24h / a.overview.sessions24h;
+  if (value < 1.3) return { value, label: "Shallow browsing. People may not be exploring." };
+  if (value <= 2.5) return { value, label: "Normal early-stage browsing." };
+  return { value, label: "Strong exploration. People are poking around." };
+}
+
+function biggestTrafficIssue(a: SiteAnalytics, latest: LatestDelta | null): string {
+  if (a.uptime.hasChecks24h && a.uptime.uptimePct24h < 98) return "Biggest issue: uptime dipped, so everything else becomes secondary.";
+  if (a.overview.events24h === 0) return "Biggest issue: no conversion events are being tracked.";
+  const pps = pagesPerSession(a).value;
+  if (pps != null && pps < 1.3) return "Biggest issue: low engagement beyond the first page.";
+  if (latest?.metric === "sessions" && latest.kind === "drop") return "Biggest issue: traffic dropped, but uptime looks stable.";
+  return "Biggest issue: traffic is readable now; focus on actions, not just visits.";
+}
+
+function storySummary(latest: LatestDelta | null): string {
+  if (!latest) return "Traffic is quiet or steady. Not enough signal for drama yet.";
+  if (latest.kind === "spike") return `Spike detected on ${latest.dayLabel}. Treat it like a clue, not a victory lap.`;
+  if (latest.kind === "drop") return `Traffic dropped on ${latest.dayLabel}. Check recent changes, top pages, and tracking coverage.`;
+  return "Traffic is steady. Now focus on actions, not just visits.";
+}
+
 type VitalExplain = {
   acronym: string;
   name: string;
@@ -211,6 +235,7 @@ const kpiInfoBtn =
 
 function KpiCard(props: {
   emphasis?: "none" | "pink" | "green" | "red";
+  icon?: string;
   eyebrow: string;
   title: string;
   value: string;
@@ -236,7 +261,10 @@ function KpiCard(props: {
         <div className="min-w-0 pr-1">
           <p className="ui-dash-kicker">{props.eyebrow}</p>
           <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-600">{props.title}</p>
-          <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">{props.value}</p>
+          <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+            {props.icon ? <span aria-hidden="true" className="mr-1 text-2xl">{props.icon}</span> : null}
+            {props.value}
+          </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           {props.infoMetricKey ? (
@@ -276,6 +304,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
     events: 0,
   };
   const latestDeltaInsight = latestDayDelta(timeline);
+  const exploration = pagesPerSession(analytics);
 
   const sessionsSeries = timeline.map((d) => d.sessions);
   const baselineSessions = median(sessionsSeries.slice(0, -1));
@@ -309,6 +338,18 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
 
   return (
     <div className="space-y-5">
+      <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
+        <p className="text-sm font-bold text-slate-950"><span aria-hidden="true">⚡</span> {biggestTrafficIssue(analytics, latestDeltaInsight)}</p>
+        <p className="mt-2 text-sm text-slate-700">
+          <span className="font-semibold">Why it matters:</span> traffic tells you demand; events tell you whether demand did anything useful.
+        </p>
+        <p className="mt-2 text-sm text-slate-700">
+          <span className="font-semibold">Do this next:</span>{" "}
+          {analytics.overview.events24h === 0
+            ? "Track one meaningful action like contact click, signup, checkout, form submit, or demo request."
+            : "Compare top pages with events so you can see what actually worked."}
+        </p>
+      </div>
       <p className="text-xs text-slate-600">
         Traffic excludes known search and SEO crawlers (by user agent). Real browsers and visitors without a
         user-agent string are still counted.
@@ -317,11 +358,12 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           infoMetricKey="sessions"
+          icon="📈"
           eyebrow="Last 24 hours"
           title="Sessions"
           value={num(analytics.overview.sessions24h)}
           happened={`${num(analytics.overview.sessions24h)} sessions in the last 24 hours.`}
-          matters="Sessions are the backbone story: demand showed up (or it didn’t)."
+          matters="This is your demand signal. Right now, it’s quiet when volume is low, so small changes can swing fast."
           next={
             analytics.overview.sessions24h === 0
               ? "Verify the snippet is on the pages you care about — especially checkout, pricing, and signup."
@@ -332,11 +374,12 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
 
         <KpiCard
           infoMetricKey="pageviews"
+          icon="🧭"
           eyebrow="Last 24 hours"
           title="Pageviews"
           value={num(analytics.overview.pageviews24h)}
           happened={`${num(analytics.overview.pageviews24h)} pageviews in the last 24 hours.`}
-          matters="Pageviews tell you whether people actually wandered your site or bounced after one screen."
+          matters="This tells you whether people explore or leave after landing."
           next={
             analytics.overview.pageviews24h === 0
               ? "If sessions exist but pageviews don’t, something’s weird with navigation, SPA routing, or tracking coverage."
@@ -347,14 +390,15 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
 
         <KpiCard
           infoMetricKey="events"
+          icon="🎯"
           eyebrow="Last 24 hours"
           title="Events"
           value={num(analytics.overview.events24h)}
           happened={`${num(analytics.overview.events24h)} custom events in the last 24 hours.`}
-          matters="Events are how you prove “this click mattered” beyond vanity traffic."
+          matters={analytics.overview.events24h === 0 ? "No conversion signals yet. This means you can’t tell what’s working." : "Events are how you prove this click mattered beyond vanity traffic."}
           next={
             analytics.overview.events24h === 0
-              ? "If you care about conversions, add explicit events for signup, checkout, lead submit, etc."
+              ? "Track one meaningful action like contact click, signup, checkout, form submit, or demo request."
               : "Pick one funnel event and watch it alongside sessions — traffic without outcomes is just vibes."
           }
           footnote={`Latest day bucket (${latestPoint.label}): ${num(latestPoint.events)}.`}
@@ -362,6 +406,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
 
         <KpiCard
           infoMetricKey="uptime"
+          icon="🛡️"
           emphasis={analytics.uptime.hasChecks24h ? undefined : "red"}
           eyebrow="Last 24 hours"
           title="Uptime (HTTP checks)"
@@ -373,7 +418,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
               ? `${num(analytics.uptime.checksUp24h)} / ${num(analytics.uptime.checks24h)} checks succeeded.`
               : "No uptime checks ran — so we can’t prove the site stayed reachable."
           }
-          matters="If this thing dies, you’re waiting for customers to tell you. Hope is not a monitoring strategy."
+          matters="If uptime dips, everything else becomes irrelevant. Search engines and customers both hate doors that don’t open."
           next={
             analytics.uptime.hasChecks24h
               ? "If uptime isn’t basically perfect, treat it like an incident — DNS, SSL, hosting, deploys, redirects."
@@ -398,8 +443,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
               {rangeDays === 1 ? "Traffic daily view" : `Traffic over the last ${rangeDays} days`}
             </h3>
             <p className="ui-dash-subtitle">
-              Here’s when people actually showed up — and whether anything changed after your latest update (or ad
-              spend, or SEO luck).
+              {storySummary(latestDeltaInsight)}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -447,7 +491,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
           <p className="mt-2 text-sm text-slate-800">
             {latestDeltaInsight ? (
               <>
-                Latest day change:{" "}
+                {latestDeltaInsight.kind === "spike" ? "⚡ Spike detected" : latestDeltaInsight.kind === "drop" ? "📉 Drop detected" : "→ Latest day change"}:{" "}
                 <span className="font-semibold">
                   {latestDeltaInsight.label}{" "}
                   {latestDeltaInsight.kind === "spike"
@@ -467,12 +511,19 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
             )}
           </p>
           <p className="mt-2 text-sm text-slate-700">
-            <span className="font-semibold">Why this matters:</span> spikes/drops are how you catch broken
-            campaigns, accidental deploys, SEO surprises, or bots being bots.
+            <span className="font-semibold">Possible causes:</span>{" "}
+            {latestDeltaInsight?.kind === "spike"
+              ? "campaign, referral, accidental self-traffic, SEO crawler, bot activity, or one-off share."
+              : latestDeltaInsight?.kind === "drop"
+                ? "normal demand swing, tracking gap, recent site change, or source change."
+                : "normal demand swing or limited data."}
           </p>
           <p className="mt-2 text-sm text-slate-700">
-            <span className="font-semibold">Do this next:</span> if you see a spike, validate it’s real humans (not
-            a tracking double-fire). If you see a drop, check uptime + top landing pages first.
+            <span className="font-semibold">Do this next:</span> compare top pages and referrers from that day before celebrating or panicking.
+          </p>
+          <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
+            Pages per session:{" "}
+            <span className="font-semibold">{exploration.value == null ? "n/a" : exploration.value.toFixed(2)}</span> — {exploration.label}
           </p>
           {vsBaseline !== null ? (
             <p className="mt-3 text-xs text-slate-600">
@@ -520,15 +571,13 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
           </p>
           <div className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-3">
             <p>
-              <span className="font-semibold">Sessions</span> = a bucket of activity that belongs to one visit
-              story (best-effort in the real world).
+              <span className="font-semibold">Sessions</span> = visits.
             </p>
             <p>
               <span className="font-semibold">Pageviews</span> = pages actually loaded.
             </p>
             <p>
-              <span className="font-semibold">Events</span> = custom signals you chose to measure (clicks, signups,
-              checkout steps).
+              <span className="font-semibold">Events</span> = meaningful actions, like clicks, signups, checkouts, or form submits.
             </p>
           </div>
         </div>
@@ -546,7 +595,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
             </div>
           </div>
           <p className="ui-dash-subtitle mt-1!">
-            Where attention pooled — protect these URLs like they pay rent (because they do).
+            These pages are doing the heavy lifting. Improve these first before worrying about the tiny goblin pages nobody visits.
           </p>
 
           <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
@@ -572,8 +621,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
               )}
             </p>
             <p className="mt-2 text-sm text-slate-700">
-              <span className="font-semibold">Why this matters:</span> if your top pages are slow, confusing, or
-              broken, you’re leaking money quietly.
+              <span className="font-semibold">Why this matters:</span> if your top pages are slow, confusing, or broken, you’re leaking money quietly.
             </p>
             <p className="mt-2 text-sm text-slate-700">
               <span className="font-semibold">Do this next:</span> open the top 3 paths on mobile and be honest
@@ -584,11 +632,22 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
           <div className="ui-chart-shell mt-4 min-h-72 w-full p-4 sm:min-h-80">
             {topPagesForChart.length > 0 ? (
               <div className="space-y-3">
-                {topPagesForChart.map((page) => (
+                {topPagesForChart.map((page) => {
+                  const share = totalPageviewsInRange > 0 ? (page.views / totalPageviewsInRange) * 100 : null;
+                  const lower = page.path.toLowerCase();
+                  const note =
+                    page.path === "/" || lower === "homepage"
+                      ? "Homepage is carrying the site. Make sure it clearly explains the offer and sends people to the next step."
+                      : lower.includes("report") || lower.includes("tool") || lower.includes("learn")
+                        ? "People are looking for utility or answers here. Add clear CTAs."
+                        : "This page is earning attention. Make the next step obvious.";
+                  return (
                   <div key={page.path} className="space-y-1.5">
                     <div className="flex items-center justify-between gap-3 text-xs">
                       <span className="min-w-0 truncate font-mono font-semibold text-slate-700">{page.path}</span>
-                      <span className="shrink-0 tabular-nums text-slate-600">{num(page.views)}</span>
+                      <span className="shrink-0 tabular-nums text-slate-600">
+                        {num(page.views)}{share != null ? ` • ${share.toFixed(0)}%` : ""}
+                      </span>
                     </div>
                     <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
                       <div
@@ -596,12 +655,13 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
                         style={{ width: `${barPercent(page.views, maxTopPageViews)}%` }}
                       />
                     </div>
+                    <p className="text-[11px] text-slate-500">{note}</p>
                   </div>
-                ))}
+                )})}
               </div>
             ) : (
               <div className="flex min-h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 text-center text-sm text-slate-500">
-                No top-page rows yet.
+                No top pages yet. Once traffic lands, this becomes your demand map.
               </div>
             )}
           </div>
@@ -614,13 +674,13 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
           <p className="ui-dash-kicker">Real-user speed</p>
           <h3 className="ui-dash-title pr-7 sm:pr-8">Core Web Vitals (last 7 days)</h3>
           <p className="ui-dash-subtitle">
-            Google-y performance signals, translated into human: “fast, stable, clickable — or not.”
+            These are not broken, but they can quietly cap conversions if ignored.
           </p>
 
           {analytics.vitalAverages.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
               <p className="text-sm font-semibold text-slate-900">The takeaway</p>
-              <p className="mt-2 text-sm text-slate-800">No CWV samples yet.</p>
+              <p className="mt-2 text-sm text-slate-800">No speed samples yet. Keep the tracker installed and let real users generate data.</p>
               <p className="mt-2 text-sm text-slate-700">
                 <span className="font-semibold">Why it matters:</span> you can’t optimize what you aren’t measuring
                 from real browsers.
@@ -642,7 +702,11 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
                         <p className="text-sm font-extrabold text-slate-950">
                           {expl.acronym} · {expl.name}
                         </p>
-                        <p className="mt-1 text-sm text-slate-700">{expl.human}</p>
+                        <p className="mt-1 text-sm text-slate-700">
+                          {expl.acronym === "INP"
+                            ? "INP is the “does this site feel snappy when I click?” metric. If it’s high, users feel lag even if the page technically loaded."
+                            : expl.human}
+                        </p>
                       </div>
                       <span className={pillClass(band)}>{band === "unknown" ? "n/a" : band}</span>
                     </div>

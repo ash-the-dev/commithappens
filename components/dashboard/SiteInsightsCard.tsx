@@ -23,7 +23,12 @@ function badgeClass(flag: string): string {
 }
 
 function formatFlag(flag: string): string {
-  return flag.replace(/_/g, " ");
+  const text = flag.replace(/_/g, " ");
+  if (flag.includes("drop")) return `📉 ${text}`;
+  if (flag.includes("spike")) return `⚡ ${text}`;
+  if (flag.includes("high_inp")) return `🐌 ${text}`;
+  if (flag.includes("downtime")) return `🔌 ${text}`;
+  return `📡 ${text}`;
 }
 
 export function SiteInsightsCard({ insights }: Props) {
@@ -39,7 +44,15 @@ export function SiteInsightsCard({ insights }: Props) {
       subtitle="Plain-English read on what moved, what looks off, and what deserves your attention — without pretending correlation is destiny."
     >
       {!hasData ? (
-        <p className="text-sm text-slate-700">{EMPTY_STATE_TEXT}</p>
+        <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+          <p className="text-sm font-semibold text-slate-950">🛡️ No weirdness detected. Tiny miracle.</p>
+          <p className="mt-2 text-sm text-slate-700">
+            <span className="font-semibold">Why it matters:</span> there is not enough stored signal to call a real pattern yet.
+          </p>
+          <p className="mt-2 text-sm text-slate-700">
+            <span className="font-semibold">Do this next:</span> keep monitoring after major updates.
+          </p>
+        </div>
       ) : (
         <>
           <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4">
@@ -89,7 +102,8 @@ export function SiteInsightsCard({ insights }: Props) {
                 Anything weird?
               </p>
               <p className="mt-2 text-sm text-slate-900">
-                <span className="font-semibold">What happened:</span> on {insights.latest_anomaly.date},{" "}
+                <span className="font-semibold">What happened:</span>{" "}
+                {insights.latest_anomaly.anomaly_type === "spike" ? "traffic spiked" : "traffic dropped"} on {insights.latest_anomaly.date},{" "}
                 <span className="font-semibold">{insights.latest_anomaly.metric_type}</span> moved{" "}
                 {insights.latest_anomaly.percent_change > 0 ? "+" : ""}
                 {insights.latest_anomaly.percent_change.toFixed(1)}% vs baseline.
@@ -97,12 +111,14 @@ export function SiteInsightsCard({ insights }: Props) {
               {insights.latest_spike_explanation?.factors[0] ? (
                 <p className="mt-2 text-sm text-slate-700">
                   <span className="font-semibold">Most likely reason:</span>{" "}
+                  {insights.latest_anomaly.anomaly_type === "spike"
+                    ? "campaign, referral, bot activity, or a one-off share. "
+                    : "normal demand swing, tracking gap, recent site change, or source change. "}
                   {insights.latest_spike_explanation.factors[0].label}
                 </p>
               ) : null}
               <p className="mt-2 text-sm text-slate-700">
-                <span className="font-semibold">Do this next:</span> open the spike card below — it’s literally built
-                for “why did this go brrrr.”
+                <span className="font-semibold">Do this next:</span> compare top pages, uptime, and recent changes before celebrating or panicking.
               </p>
             </div>
           ) : null}

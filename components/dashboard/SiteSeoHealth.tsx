@@ -60,7 +60,7 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
     <DashboardSection
       kicker="SEO ops"
       title="Search doesn’t care about your feelings. It cares about facts."
-      subtitle="Operational SEO health: what Google can crawl, what users can load, and what’s quietly sabotaging you."
+      subtitle="SEO is won or lost on a handful of pages. Yours are under-explained."
       meta={
         <span>
           Domain in play: <span className="font-semibold text-slate-900">{domain}</span>
@@ -77,9 +77,7 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
               <p className="mt-2 text-sm font-semibold text-slate-900">
                 If the site is down, SEO is a fantasy hobby.
               </p>
-              <p className="mt-2 text-sm text-slate-700">
-                Uptime checks are your early warning for “Google can’t reach this” moments.
-              </p>
+              <p className="mt-2 text-sm text-slate-700">Early warning for “Google can’t reach this” moments.</p>
             </div>
             <span className={pillClass(uptimeStatus)}>
               {uptimeStatus === "good"
@@ -143,9 +141,7 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
               <p className="mt-2 text-sm font-semibold text-slate-900">
                 Speed signals Google actually notices.
               </p>
-              <p className="mt-2 text-sm text-slate-700">
-                CWV is basically “does your site feel fast, stable, and clickable?” — not vanity Lighthouse scores.
-              </p>
+              <p className="mt-2 text-sm text-slate-700">Does your site feel fast, stable, and clickable?</p>
             </div>
             <span className={pillClass(cwvWorst)}>{cwvWorstLabel}</span>
           </div>
@@ -212,18 +208,19 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+        <div className="scale-[1.01] rounded-2xl border border-violet-300 bg-white p-4 shadow-[0_0_0_4px_rgba(139,92,246,0.08),0_24px_60px_-42px_rgba(88,28,135,0.45)]">
           <div className="flex items-start justify-between gap-3">
             <div>
+              <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700">
+                This is your biggest opportunity right now
+              </span>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                 Landing pages + demand signals
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-900">
-                What people actually hit — which is usually what SEO should protect first.
+                What people actually hit, so this is what SEO should protect first.
               </p>
-              <p className="mt-2 text-sm text-slate-700">
-                This is “where your site earns attention” using real traffic, not vibes.
-              </p>
+              <p className="mt-2 text-sm text-slate-700">Real traffic, not vibes.</p>
             </div>
             <span className={pillClass(topLanding ? "good" : "unknown")}>
               {topLanding ? "Top URL" : "No pages"}
@@ -237,19 +234,16 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
               : "No pageview paths yet in the last 14 days."}
           </p>
           <p className="mt-2 text-sm text-slate-700">
-            <span className="font-semibold">Why it matters:</span> SEO wins/loses on a handful of templates. If
-            your top URLs are slow, thin, duplicate, or blocked, everything else is theater.
+            <span className="font-semibold">Why it matters:</span> SEO is won or lost on a handful of pages. Yours are under-explained.
           </p>
           <p className="mt-2 text-sm text-slate-700">
-            <span className="font-semibold">Do this next:</span> treat your top 5 URLs like product launches:
-            titles, intros, internal links, speed, and structured data — in that order.
+            <span className="font-semibold">Do this next:</span> rewrite titles, intros, internal links, and speed on the top 5 URLs first.
           </p>
 
           <div className="mt-4 rounded-xl border border-slate-200/80 bg-white/70 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">What to check first</p>
             <p className="mt-2 text-xs leading-relaxed text-slate-700">
-              Start with the pages getting real visits. If the homepage is the only page with traffic, make sure
-              it clearly explains what you do, loads cleanly, and points people to the next useful action.
+              Start where people already land. Make the page explain what you do, load cleanly, and point to the next action.
             </p>
           </div>
         </div>

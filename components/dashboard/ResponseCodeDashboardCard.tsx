@@ -8,7 +8,7 @@ import { getSeoPlaybookResponse, type SeoPlaybookIssueKey } from "@/lib/seo/play
 import { SeoOnPageReportSection } from "@/components/dashboard/SeoOnPageReportSection";
 import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
 import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
-import type { SeoCrawlOnPageBreakdown } from "@/lib/db/seo-crawl-intelligence";
+import type { SeoCrawlOnPageBreakdown, SeoCrawlTopIssue } from "@/lib/db/seo-crawl-intelligence";
 
 const metricInfoBtn = "h-3.5 w-3.5 min-h-3.5 min-w-3.5 border-slate-400/60 bg-slate-200/80 text-slate-800";
 
@@ -63,6 +63,8 @@ type Props = {
    * When null, the on-page section explains what is missing without touching response-code data.
    */
   onPageBreakdown?: SeoCrawlOnPageBreakdown | null;
+  topIssues?: SeoCrawlTopIssue[];
+  crawlHealthScore?: number | null;
 };
 
 const PIE_COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#94a3b8"];
@@ -233,10 +235,11 @@ type MetricCardProps = {
   delta: number;
   trend: "better" | "worse" | "stable" | "n/a";
   help: string;
+  interpretation: string;
   infoKey?: string;
 };
 
-function MetricCard({ label, value, previous, delta, trend, help, infoKey }: MetricCardProps) {
+function MetricCard({ label, value, previous, delta, trend, help, interpretation, infoKey }: MetricCardProps) {
   const expl = infoKey ? getMetricExplanation(infoKey) : null;
   return (
     <article className="rounded-2xl border border-white/45 bg-white/90 p-4 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.65)]">
@@ -253,6 +256,9 @@ function MetricCard({ label, value, previous, delta, trend, help, infoKey }: Met
         <span className="text-xs font-medium text-slate-600">{delta > 0 ? `+${delta}` : delta}</span>
       </div>
       <p className="mt-2 text-xs leading-relaxed text-slate-600">{help}</p>
+      <p className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs font-medium leading-relaxed text-blue-900">
+        {interpretation}
+      </p>
     </article>
   );
 }
@@ -291,17 +297,17 @@ function MiniChartCard({ title, explanation, summary, empty, hasData, children }
   );
 }
 
-function issueGuides(current: ResponseCodeReportLike) {
+function issueGuides(current: ResponseCodeReportLike, onPageBreakdown: SeoCrawlOnPageBreakdown | null) {
   const s = current.raw.summary;
   const byKey: Record<SeoPlaybookIssueKey, number> = {
     "404": s.clientErrors,
     "5xx": s.serverErrors,
     redirects: s.redirects,
-    missing_titles: 0,
-    missing_meta: 0,
-    missing_h1: 0,
-    thin_content: 0,
-    duplicate_content: 0,
+    missing_titles: onPageBreakdown?.titleMissing ?? 0,
+    missing_meta: onPageBreakdown?.metaMissing ?? 0,
+    missing_h1: onPageBreakdown?.h1Missing ?? 0,
+    thin_content: onPageBreakdown?.byIssueType.thin_content ?? 0,
+    duplicate_content: onPageBreakdown?.byIssueType.duplicate_content ?? 0,
     unknown_crawl_issues: s.other,
     healthy_pages: s.healthy,
     regression: 0,
@@ -335,7 +341,20 @@ function issueGuides(current: ResponseCodeReportLike) {
   });
 }
 
-export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown = null }: Props) {
+function priorityFromIssue(issue: SeoCrawlTopIssue): "high" | "medium" | "low" {
+  if (issue.issue_severity === "critical" || issue.issue_severity === "high" || issue.issue_severity === "warning") {
+    return "high";
+  }
+  if (issue.issue_severity === "medium" || issue.issue_severity === "notice") return "medium";
+  return "low";
+}
+
+export function ResponseCodeDashboardCard({
+  siteId = "default",
+  onPageBreakdown = null,
+  topIssues = [],
+  crawlHealthScore = null,
+}: Props) {
   const [envelope, setEnvelope] = useState<ResponseCodeEnvelope | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
@@ -380,7 +399,37 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
   const data = envelope ?? empty;
   const current = data.current;
   const comparison = data.comparison;
-  const hasData = current.insights.overview.totalUrls > 0;
+  const pageLevelIssueTotal =
+    (onPageBreakdown?.titleMissing ?? 0) +
+    (onPageBreakdown?.metaMissing ?? 0) +
+    (onPageBreakdown?.h1Missing ?? 0) +
+    (onPageBreakdown?.notIndexable ?? 0);
+  const pagesCrawled = Math.max(current.insights.overview.totalUrls, onPageBreakdown?.pagesCrawled ?? 0);
+  const issuesFound = Math.max(current.insights.overview.issuesFound, pageLevelIssueTotal);
+  const healthScore = crawlHealthScore ?? current.insights.overview.healthScore;
+  const hasData = pagesCrawled > 0;
+  const pagesInterpretation =
+    comparison.deltas.totalPages.trend === "better"
+      ? "Coverage is improving. More pages = better visibility."
+      : "Coverage is steady. Keep the crawl focused on pages that matter.";
+  const issuesInterpretation =
+    issuesFound === 0
+      ? "Zero new issues is a strong signal."
+      : pageLevelIssueTotal > current.insights.overview.issuesFound
+        ? "Response codes are clean, but on-page structure still needs attention."
+        : "New issues showed up. Fix those before chasing nice-to-have polish.";
+  const healthInterpretation =
+    crawlHealthScore != null && crawlHealthScore !== current.insights.overview.healthScore
+      ? "This reflects the full crawl, including on-page structure, not just status codes."
+      : comparison.deltas.healthScore.trend === "better"
+        ? "Moving up. Keep tightening structure."
+        : comparison.deltas.healthScore.trend === "worse"
+          ? "Score slipped. Start with the highest-impact crawl issue."
+          : "Holding steady. Now it’s about refinement.";
+  const movementInterpretation =
+    comparison.deltas.newIssues === 0
+      ? "No regressions. That’s exactly what we want."
+      : "Regressions exist. Fix the newest blockers first.";
 
   const statusBuckets = [
     { name: "Healthy 2xx", value: current.raw.summary.healthy, color: PIE_COLORS[0] },
@@ -394,6 +443,9 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
     { name: "4xx client errors", value: current.raw.summary.clientErrors, color: "#06b6d4" },
     { name: "5xx server errors", value: current.raw.summary.serverErrors, color: "#f59e0b" },
     { name: "3xx redirects", value: current.raw.summary.redirects, color: "#8b5cf6" },
+    { name: "Missing meta", value: onPageBreakdown?.metaMissing ?? 0, color: "#ec4899" },
+    { name: "Missing titles", value: onPageBreakdown?.titleMissing ?? 0, color: "#f97316" },
+    { name: "Missing H1s", value: onPageBreakdown?.h1Missing ?? 0, color: "#14b8a6" },
     { name: "Unknown", value: current.raw.summary.other, color: "#94a3b8" },
   ];
   const issueBreakdownTotal = issueBreakdownData.reduce((sum, item) => sum + item.value, 0);
@@ -405,7 +457,19 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
   ];
   const changeSplitTotal = changeSplit.reduce((sum, item) => sum + item.value, 0);
 
-  const guides = issueGuides(current);
+  const guides = issueGuides(current, onPageBreakdown);
+  const priorityRecommendations = [
+    ...topIssues.map((issue) => ({
+      type: issue.issue_type,
+      message: `${issue.title || issue.issue_type.replaceAll("_", " ")}${issue.url ? ` on ${issue.url}` : ""}`,
+      priority: priorityFromIssue(issue),
+    })),
+    ...(current.insights.recommendations as Array<{
+      type: string;
+      message?: string;
+      priority: "high" | "medium" | "low";
+    }>),
+  ].slice(0, 6);
   const baselinePlaybook = [
     getSeoPlaybookResponse("healthy_pages"),
     getSeoPlaybookResponse("improvement"),
@@ -421,11 +485,19 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
             <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">SEO crawl details</p>
               <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
-                {hasData ? comparison.overview.headline : "No crawl report data yet."}
+                {pageLevelIssueTotal > 0
+                  ? "Response codes are clean. The SEO gremlin is page structure."
+                  : hasData && comparison.deltas.healthScore.trend === "better"
+                  ? "No drama. This crawl moved in the right direction. You’re stabilizing."
+                  : hasData
+                    ? comparison.overview.headline
+                    : "No crawl report data yet."}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
                 {hasData
-                  ? comparison.overview.summary
+                  ? pageLevelIssueTotal > 0
+                    ? `The crawler saved ${pagesCrawled.toLocaleString("en-US")} pages and found ${pageLevelIssueTotal.toLocaleString("en-US")} on-page issue${pageLevelIssueTotal === 1 ? "" : "s"}. The pages load, but search engines still need clearer structure.`
+                    : comparison.overview.summary
                   : "Run SEO Crawl from the controls above. This section stays empty until the crawler saves real page data."}
               </p>
               {!hasData ? (
@@ -449,29 +521,32 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Pages crawled"
-            value={comparison.deltas.totalPages.current}
+            value={pagesCrawled}
             previous={comparison.deltas.totalPages.previous}
             delta={comparison.deltas.totalPages.delta}
             trend={comparison.deltas.totalPages.trend}
             help="How many URLs were evaluated in this run."
+            interpretation={pagesInterpretation}
             infoKey="pages_crawled"
           />
           <MetricCard
             label="Issues found"
-            value={comparison.deltas.issuesFound.current}
+            value={issuesFound}
             previous={comparison.deltas.issuesFound.previous}
             delta={comparison.deltas.issuesFound.delta}
             trend={comparison.deltas.issuesFound.trend}
             help="Lower is better. This tracks pages outside the healthy path."
+            interpretation={issuesInterpretation}
             infoKey="seo_response_issues"
           />
           <MetricCard
             label="Health score"
-            value={comparison.deltas.healthScore.current}
+            value={healthScore}
             previous={comparison.deltas.healthScore.previous}
             delta={comparison.deltas.healthScore.delta}
             trend={comparison.deltas.healthScore.trend}
             help="Composite quality signal from response distribution."
+            interpretation={healthInterpretation}
             infoKey="seo_response_health_score"
           />
           <article className="relative rounded-2xl border border-white/45 bg-white/90 p-4 pl-10 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.65)] sm:pl-4">
@@ -490,16 +565,15 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
               />
             </div>
             <p className="mt-2 text-xs text-slate-600">Healthy pages are the backbone. Keep them boring in the best way.</p>
+            <p className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs font-medium leading-relaxed text-blue-900">
+              {movementInterpretation}
+            </p>
           </article>
         </section>
 
         <SeoOnPageReportSection
           breakdown={onPageBreakdown}
-          priorityRecommendations={current.insights.recommendations as Array<{
-            type: string;
-            message?: string;
-            priority: "high" | "medium" | "low";
-          }>}
+          priorityRecommendations={priorityRecommendations}
         />
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

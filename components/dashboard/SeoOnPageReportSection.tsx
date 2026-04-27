@@ -47,6 +47,10 @@ function CoverageBar(props: { label: string; value: number; note: string }) {
   );
 }
 
+function pageWord(value: number): string {
+  return `${value} page${value === 1 ? "" : "s"}`;
+}
+
 /**
  * On-page, indexability, and content signals from the latest `seo_crawl_pages` import.
  * Renders even when the response-code import is the primary comparison surface.
@@ -80,8 +84,8 @@ export function SeoOnPageReportSection({ breakdown, priorityRecommendations }: P
         <div>
           <h3 className="text-lg font-semibold text-slate-950">On-page, links, and indexability</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Pulled from your latest <span className="font-semibold text-slate-900">crawl import</span> (not the same file as
-            every HTTP-only export). As of {new Date(breakdown.runCreatedAt ?? "").toLocaleString() || "this run"}.
+            What’s happening: the latest crawl found structure gaps. Why it matters: search engines need labels before
+            they can rank pages confidently. What to do next: fix H1s, titles, and metas on the pages below first.
           </p>
         </div>
         <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
@@ -95,8 +99,7 @@ export function SeoOnPageReportSection({ breakdown, priorityRecommendations }: P
             <div>
               <h4 className="text-sm font-semibold text-slate-950">Crawl category coverage</h4>
               <p className="mt-1 text-xs text-slate-600">
-                If one category is empty, the dashboard starts looking suspicious. This shows what the latest import
-                actually populated.
+                Technical fields translated into human impact. As of {new Date(breakdown.runCreatedAt ?? "").toLocaleString() || "this run"}.
               </p>
             </div>
             <span className="rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700">
@@ -122,8 +125,9 @@ export function SeoOnPageReportSection({ breakdown, priorityRecommendations }: P
             <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("onpage_titles")} />
           </div>
           <StatLine
-            label="Present / missing"
+            label={`${pageWord(breakdown.titleMissing)} have weak search labels.`}
             value={`${breakdown.titlePresent} ok · ${breakdown.titleMissing} missing`}
+            note="Titles are the headline people see before they click."
           />
         </article>
 
@@ -133,8 +137,9 @@ export function SeoOnPageReportSection({ breakdown, priorityRecommendations }: P
             <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("onpage_meta")} />
           </div>
           <StatLine
-            label="Present / missing"
+            label={`${pageWord(breakdown.metaMissing)} are missing search preview copy.`}
             value={`${breakdown.metaPresent} ok · ${breakdown.metaMissing} missing`}
+            note="Blank metas let search engines improvise. Tiny chaos generator."
           />
         </article>
 
@@ -144,8 +149,9 @@ export function SeoOnPageReportSection({ breakdown, priorityRecommendations }: P
             <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("onpage_h1")} />
           </div>
           <StatLine
-            label="Present / missing"
+            label={`${pageWord(breakdown.h1Missing)} don’t clearly say what they are.`}
             value={`${breakdown.h1Present} ok · ${breakdown.h1Missing} missing`}
+            note="That hurts clarity for users and search engines."
           />
         </article>
 
@@ -171,8 +177,9 @@ export function SeoOnPageReportSection({ breakdown, priorityRecommendations }: P
             <InfoTooltip buttonClassName={tbtn} {...getMetricExplanation("onpage_indexability")} />
           </div>
           <StatLine
-            label="2xx vs other / redirect bucket"
+            label={`${pageWord(breakdown.notIndexable)} are not clean 2xx responses or are unclear.`}
             value={`${breakdown.indexable2xx} clean · ${breakdown.notIndexable} not 2xx or unclear`}
+            note="If a page cannot be cleanly reached, it cannot reliably earn attention."
           />
         </article>
 
@@ -207,7 +214,7 @@ export function SeoOnPageReportSection({ breakdown, priorityRecommendations }: P
       <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 sm:p-5">
         <h4 className="text-sm font-semibold text-slate-950">Priority recommendations (from this report)</h4>
         <p className="mt-1 text-xs text-slate-500">
-          Same list as the response-code engine — now paired with the on-page crawl readout above.
+          Fix these first. They’re the fastest way to improve how your site shows up in search.
         </p>
         {priorityRecommendations.length === 0 ? (
           <p className="mt-3 text-sm text-slate-600">

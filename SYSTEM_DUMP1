@@ -1,0 +1,352 @@
+Commit Happens / ash-ops System Dump
+Generated: 2026-04-27T13:02:39.8470504-07:00
+
+Purpose
+-------
+This is a plain-text system snapshot for the current Commit Happens codebase.
+It intentionally does not dump dependency folders, generated build output, node_modules, .next,
+Cursor workspace storage, logs, binary/image contents, or secret environment values.
+
+Excluded from this dump
+-----------------------
+- node_modules/
+- .next/
+- .git/
+- public generated image binaries
+- package-lock.json contents
+- Cursor workspaceStorage / terminal transcripts / screenshots
+- environment variable values and secrets
+
+Current Git State
+-----------------
+Branch:
+- master...origin/master
+
+Recent commits:
+- d7052ab Refine dashboard crawl workflows
+- 43f36f6 Enhance dashboard performance metrics
+- a644047 Unify dashboard intelligence state
+- d5f9228 Refine dashboard tiers and SEO crawl reporting
+- bccf833 Tighten landing page positioning
+
+Untracked local files at dump time:
+- SYSTEM_DUMP.txt
+
+Project Summary
+---------------
+Repo: ash-ops
+Product: Commit Happens
+Framework: Next.js App Router
+Runtime: Node.js routes for DB, crawler, AI, billing, uptime, and social jobs
+UI: React 19, Tailwind CSS, Recharts dependency still installed
+Database: PostgreSQL via pg, Supabase-compatible schema/migrations
+Auth: NextAuth credentials flow
+Billing: Stripe
+AI: OpenAI
+Crawler: Apify SEO crawler with webhook import
+Analytics: first-party tracker endpoint at /api/v1/ingest
+
+Package Scripts
+---------------
+- npm run dev: next dev
+- npm run build: next build
+- npm run start: next start
+- npm run lint: eslint
+- npm run seo:run: tsx scripts/run-apify-and-import.ts
+- npm run seo:import-apify: tsx scripts/import-apify-run.ts
+- npm run brand:assets: node scripts/generate-brand-assets.cjs
+
+Key Dependencies
+----------------
+- next 16.2.4
+- react 19.2.4
+- react-dom 19.2.4
+- next-auth ^4.24.14
+- pg ^8.20.0
+- @supabase/supabase-js ^2.49.1
+- openai ^6.34.0
+- stripe ^22.0.2
+- tsx ^4.20.6
+- recharts ^3.8.1
+
+Primary App Routes
+------------------
+Marketing / static:
+- /
+- /about
+- /acceptable-use
+- /billing
+- /billing/cancel
+- /billing/success
+- /disclaimer
+- /forgot-password
+- /how-it-works
+- /login
+- /pricing
+- /privacy
+- /register
+- /reset-password
+- /terms
+
+Dashboard:
+- /dashboard
+- /dashboard/billing
+- /dashboard/sites/new
+- /dashboard/sites/[id]
+- /admin
+
+API Routes
+----------
+Auth / billing:
+- app/api/auth/[...nextauth]/route.ts
+- app/api/billing/checkout/route.ts
+- app/api/billing/portal/route.ts
+- app/api/billing/webhook/route.ts
+
+Analytics / dashboard:
+- app/api/v1/ingest/route.ts
+- app/api/dashboard/site-trends/route.ts
+- app/api/internal/ai/ask-dashboard/route.ts
+- app/api/internal/cases/route.ts
+- app/api/internal/change-logs/create/route.ts
+- app/api/internal/notifications/status/route.ts
+
+SEO:
+- app/api/seo/run/route.ts
+- app/api/seo/run-crawl/route.ts
+- app/api/seo/run-status/route.ts
+- app/api/seo/webhook/route.ts
+- app/api/seo/response-codes/route.ts
+- app/api/seo/recommendations/route.ts
+- app/api/internal/seo/response-codes/run/route.ts
+
+Uptime:
+- app/api/uptime/refresh/route.ts
+- app/api/internal/uptime/check/route.ts
+- app/api/internal/uptime/run/route.ts
+
+Reputation Pulse:
+- app/api/social/watch-terms/route.ts
+- app/api/internal/social/check/route.ts
+
+Core Services
+-------------
+- services/siteStateService.ts
+  Builds unified SiteIntelligenceState from scan lifecycle rows and syncs current dashboard data into scans.
+
+- services/siteIntelligenceEngine.ts
+  Interprets site state into health score, top priority, momentum, signals, and next actions.
+
+- services/analyticsInsightEngine.ts
+  Converts raw analytics into plain-English traffic, engagement, audience, event, and action summaries.
+
+- services/overviewBriefingService.ts
+  Builds top dashboard briefing cards from siteState + siteIntelligence.
+
+- services/aiInsightService.ts
+  Central AI response helper for reputation-style response suggestions.
+
+DB / Data Modules
+-----------------
+- lib/db/pool.ts: PostgreSQL pool
+- lib/db/users.ts: users
+- lib/db/websites.ts: owned websites and tracking keys
+- lib/db/analytics.ts: analytics rollups, top pages, live activity, analytics scan recording
+- lib/db/uptime.ts: uptime monitors/checks/history and uptime scan recording
+- lib/db/scans.ts: unified scans ledger and lifecycle helpers
+- lib/db/seo-apify-pipeline.ts: SEO crawl tables, Apify run persistence, response-code report writes
+- lib/db/seo-crawl-intelligence.ts: latest validated crawl reads, history, top issues, on-page breakdown
+- lib/db/insights.ts: deterministic dashboard insight/anomaly engine
+- lib/db/threats.ts: threat/activity rollups
+- lib/db/change-impact.ts: change-impact data
+- lib/db/change-logs.ts: change logs
+- lib/db/alerts.ts: alert center data
+- lib/db/notifications.ts: notification sync/read model
+- lib/db/cases.ts: case workbench
+- lib/db/subscriptions.ts: billing subscriptions
+- lib/db/admin-dashboard.ts: admin data
+- lib/db/dashboard.ts: dashboard summaries
+
+Database SQL Files
+------------------
+- database/schema.sql
+- database/2026-04-site-scans.sql
+- database/2026-04-seo-crawl-tables.sql
+- database/2026-04-seo-crawl-intelligence.sql
+- database/2026-04-response-code-reports.sql
+- database/2026-04-response-code-reports-metadata.sql
+- database/2026-04-seo-crawl-external-source.sql
+- database/2026-04-seo-ai-recommendations.sql
+- database/2026-04-social-reputation-pulse.sql
+- database/2026-04-uptime-scheduled-monitoring.sql
+- database/2026-04-uptime-monitors-results-split.sql
+- database/2026-04-billing-subscriptions.sql
+- database/2026-04-user-free-plan.sql
+- database/2026-04-founder-test-tiers.sql
+- database/2026-04-dashboard-backend-upgrades.sql
+- database/2026-04-dashboard-cases.sql
+- database/2026-04-case-ownership-actions.sql
+- database/2026-04-dashboard-notifications.sql
+- database/2026-04-change-logs.sql
+- database/2026-04-stale-seo-scans.sql
+- database/supabase-rls.sql
+- database/password-reset-migration.sql
+
+Unified Scans Ledger
+--------------------
+Scan types:
+- seo
+- uptime
+- analytics
+- reputation
+
+Lifecycle statuses:
+- running
+- complete
+- failed
+
+Completed scan contract:
+- site_id
+- scan_type
+- status = complete
+- started_at
+- completed_at
+- result_summary
+- source
+
+Structured result summaries:
+- SEO: { broken_pages, missing_meta, performance_issues }
+- Uptime: { status: online|offline, downtime_events }
+- Analytics: { traffic_24h, trend: up|down|flat }
+- Reputation: { mentions, flagged_mentions }
+
+Dashboard Data Flow
+-------------------
+1. /dashboard/sites/[id] loads auth, site, billing, analytics, uptime, SEO crawl, and social mentions.
+2. syncSiteStateFromCurrentData writes current dashboard data into the scans ledger.
+3. buildAnalyticsInsightReport interprets analytics.
+4. buildSiteIntelligenceReport interprets unified state.
+5. buildOverviewBriefing creates top dashboard briefing cards.
+6. SiteCommandCenterDashboard renders:
+   - overview briefing cards
+   - top pages
+   - recent activity
+   - tabs for Traffic, Performance, SEO Crawl, Reputation Pulse, intelligence tabs, Tracker Setup
+
+Entitlements
+------------
+Primary policy source:
+- lib/entitlements.ts
+
+Billing bridge:
+- lib/billing/access.ts
+- lib/billing/plan-limits.ts
+- lib/billing/plans.ts
+- lib/billing/plan-monitoring.ts
+- lib/billing/intelligence-guard.ts
+
+Plan-gated feature areas:
+- SEO Crawl
+- AI Insights
+- Dashboard Intelligence
+- Reputation Pulse
+- Uptime cadence
+- Site limits
+- Crawl limits
+- Watch-term and mention limits
+
+Current SEO crawl cadence policy:
+- Free: no SEO crawl
+- Situationship: 1 SEO crawl per site per month
+- Committed: 1 SEO crawl per site per week
+- All In: 1 SEO crawl per site per 24 hours
+
+SEO Crawl System
+----------------
+Primary user crawl route:
+- POST /api/seo/run
+
+Status polling:
+- GET /api/seo/run-status?crawlRunId=...
+
+Webhook:
+- POST /api/seo/webhook
+
+Important behavior:
+- /api/seo/run starts Apify and creates a running scans row.
+- webhook fetches Apify dataset, normalizes/enriches, persists crawl pages/reports/issues.
+- zero-page imports fail instead of pretending to create a usable report.
+- validated SEO reads require stored page URLs to match the website primary domain.
+- response-code report reads are tied to the validated latest crawl.
+- AI SEO recommendations return no_crawl_data when there are no saved page rows.
+- AI SEO recommendations use a fast model first and timeout to deterministic crawl-based advice.
+- UI avoids duplicate crawl buttons and uses one primary SEO Crawl path.
+
+Recent UX / Reliability Work
+----------------------------
+- Added visible Change Log form for manually logging shipped changes.
+- Clarified that change logs are not to-do lists.
+- Reputation Pulse is watch-term based, not a one-off AI prompt.
+- Dashboard overview cards now switch tabs and scroll to the tab panel.
+- Site dashboard chart areas were moved away from fragile responsive Recharts containers.
+- SEO Crawl tab now uses stable CSS summaries instead of blank-prone chart containers.
+- Traffic timeline/top pages now use stable CSS summaries.
+- SEO crawl overrun protection is enforced by tier.
+- Pricing copy reflects All In as one SEO crawl per site per 24 hours.
+
+Deployment / Operations
+-----------------------
+Latest known production deploy:
+- Commit: d7052ab Refine dashboard crawl workflows
+- Vercel production alias: https://commithappens.com
+- Vercel deploy URL: https://commithappens-dz9s8ednr-ash-armstrongs-projects.vercel.app
+
+Supabase notes:
+- Supabase CLI was not on PATH during the latest deploy operation.
+- database/2026-04-site-scans.sql was applied directly via DATABASE_URL.
+
+Environment Variables Referenced
+--------------------------------
+Do not put secret values in this file.
+
+Common env names used by current code:
+- DATABASE_URL or POSTGRES_URL
+- NEXTAUTH_SECRET / auth-related config
+- STRIPE_SECRET_KEY / Stripe webhook secret / price IDs
+- OPENAI_API_KEY
+- APIFY_API_TOKEN or APIFY_TOKEN
+- APIFY_ACTOR_ID
+- APIFY_WEBHOOK_SECRET
+- SEO_CRAWL_WEBHOOK_URL
+- UPTIME_CRON_SECRET
+- Internal social/cron secret value used by internal routes
+- Brave/Search provider keys for Reputation Pulse web search
+
+Storage / Cleanup Notes
+-----------------------
+Safe generated folders to clear when dev/build servers are stopped:
+- .next/
+- Next/Turbopack cache under .next/cache if present
+- transient terminal logs outside the repo
+- old Cursor screenshots/transcripts outside the repo if not needed for audit history
+
+Do not delete:
+- database/
+- app/
+- components/
+- lib/
+- services/
+- scripts/
+- public/brand and app icon files generated by the brand script unless you are prepared to regenerate them
+- package-lock.json
+- migrations
+- .env.local
+
+Operational Notes
+-----------------
+- The dashboard should show only working features, stored/live data, and useful empty states.
+- Planned integrations should stay hidden from normal users unless gated behind an admin/dev flag.
+- SEO Crawl should be the only crawl action.
+- Refresh Stats should only reload stored data.
+- If a crawl finishes but no pages save, users should see import failure/empty state, not "baseline captured."
+- Recommendations should explain fixes like a normal person can follow them.

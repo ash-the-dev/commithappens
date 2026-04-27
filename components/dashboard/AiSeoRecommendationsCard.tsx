@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type SeoRecommendation = {
   id: string;
@@ -25,9 +25,15 @@ type ApiPayload = {
   source?: "ai" | "fallback";
   model?: string | null;
   generatedAt?: string;
+  crawlRunId?: string | null;
   runCreatedAt?: string | null;
   recommendations?: SeoRecommendation[];
   summary?: string;
+  sections?: Array<{ title: string; body: string }>;
+  checklist?: string[];
+  priority?: "critical" | "high" | "medium" | "low" | "none";
+  confidence?: "stored data" | "early signal" | "needs more data";
+  basedOn?: string[];
   keywordContext?: {
     primaryKeywords: string[];
     supportingKeywords: string[];
@@ -39,7 +45,12 @@ type ApiPayload = {
 
 type Props = {
   siteId: string;
+  crawlRunId?: string | null;
 };
+
+const FRESH_RESPONSE_MS = 5 * 60 * 1000;
+const cachedPayloads = new Map<string, { payload: ApiPayload; fetchedAt: number }>();
+const inFlightRequests = new Map<string, Promise<ApiPayload>>();
 
 function severityClass(severity: SeoRecommendation["severity"]): string {
   if (severity === "critical") return "border-amber-300 bg-amber-50 text-amber-800";
@@ -61,34 +72,68 @@ function guideSteps(rec: SeoRecommendation): string[] {
   ];
 }
 
-export function AiSeoRecommendationsCard({ siteId }: Props) {
+export function AiSeoRecommendationsCard({ siteId, crawlRunId = null }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [payload, setPayload] = useState<ApiPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/seo/recommendations?site_id=${encodeURIComponent(siteId)}`, {
-        method: "GET",
-      });
-      const data = (await res.json()) as ApiPayload;
-      if (!res.ok || data.ok === false) {
-        setError(data.message || data.error || "AI recommendations didn’t load. The robot intern tripped.");
-        setPayload(null);
+      const cacheKey = `${siteId}:${crawlRunId ?? "no-crawl"}`;
+      const cached = cachedPayloads.get(cacheKey);
+      if (!force && cached && Date.now() - cached.fetchedAt < FRESH_RESPONSE_MS) {
+        setPayload(cached.payload);
+        setIsLoading(false);
         return;
       }
+
+      let request = !force ? inFlightRequests.get(cacheKey) : null;
+      if (!request) {
+        request = fetch(`/api/seo/recommendations?site_id=${encodeURIComponent(siteId)}`, {
+          method: "GET",
+        }).then(async (res) => {
+          const data = (await res.json()) as ApiPayload;
+          if (!res.ok || data.ok === false) {
+            throw new Error(data.message || data.error || "AI recommendations didn’t load. The robot intern tripped.");
+          }
+          cachedPayloads.set(cacheKey, { payload: data, fetchedAt: Date.now() });
+          return data;
+        });
+        inFlightRequests.set(cacheKey, request);
+        void request.then(
+          () => {
+            if (inFlightRequests.get(cacheKey) === request) {
+              inFlightRequests.delete(cacheKey);
+            }
+          },
+          () => {
+            if (inFlightRequests.get(cacheKey) === request) {
+              inFlightRequests.delete(cacheKey);
+            }
+          },
+        );
+      }
+      const data = await request;
+      if (requestIdRef.current !== requestId) return;
       setPayload(data);
-    } catch {
-      setError("AI recommendations didn’t load. The robot intern tripped.");
-      setPayload(null);
+    } catch (err) {
+      if (requestIdRef.current !== requestId) return;
+      setError(err instanceof Error ? err.message : "AI recommendations didn’t load. The robot intern tripped.");
+      const cached = cachedPayloads.get(`${siteId}:${crawlRunId ?? "no-crawl"}`);
+      setPayload(cached?.payload ?? null);
     } finally {
-      setIsLoading(false);
+      if (requestIdRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
-  }, [siteId]);
+  }, [siteId, crawlRunId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -108,6 +153,10 @@ export function AiSeoRecommendationsCard({ siteId }: Props) {
 
   const recommendations = payload?.recommendations ?? [];
   const noCrawlData = payload?.error === "no_crawl_data";
+  const topRecommendation = recommendations[0] ?? null;
+  const biggestOpportunity =
+    recommendations.find((rec) => rec.type === "missing_meta_description" || rec.type === "missing_h1" || rec.type === "missing_title") ??
+    topRecommendation;
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)] sm:p-6">
@@ -116,17 +165,17 @@ export function AiSeoRecommendationsCard({ siteId }: Props) {
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-600">AI Recommendations</p>
           <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">What to fix next</h3>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Custom, page-specific SEO fixes generated from the latest crawl. Copy suggested titles, H1s, and meta
-            descriptions straight into your site.
+            You’re not in trouble, but you’re leaving easy wins on the table. These are crawl-backed fixes, ranked by
+            impact.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+          <span className="rounded-full border border-slate-200 bg-slate-50/70 px-2 py-0.5 text-[10px] font-medium text-slate-500">
             {payload?.source === "ai" ? "AI layer" : "Fallback"}
           </span>
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void load(true)}
             disabled={isLoading}
             className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-800 transition hover:bg-violet-100 disabled:opacity-60"
           >
@@ -139,6 +188,23 @@ export function AiSeoRecommendationsCard({ siteId }: Props) {
         <p className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/70 p-3 text-sm text-slate-700">
           {payload.summary}
         </p>
+      ) : null}
+
+      {topRecommendation ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <p className="rounded-2xl border border-violet-200 bg-violet-50/80 p-3 text-sm text-slate-800">
+            <span className="block text-xs font-black uppercase tracking-[0.14em] text-violet-700">
+              If you only fix one thing today
+            </span>
+            {topRecommendation.title}
+          </p>
+          <p className="rounded-2xl border border-blue-200 bg-blue-50/80 p-3 text-sm text-slate-800">
+            <span className="block text-xs font-black uppercase tracking-[0.14em] text-blue-700">
+              Biggest opportunity
+            </span>
+            {biggestOpportunity?.estimatedImpact ?? biggestOpportunity?.whyItMatters ?? "Clarify the pages search engines already found."}
+          </p>
+        </div>
       ) : null}
 
       {payload?.keywordContext ? (
@@ -186,10 +252,16 @@ export function AiSeoRecommendationsCard({ siteId }: Props) {
       ) : null}
 
       {isLoading ? (
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {[0, 1].map((idx) => (
-            <div key={idx} className="h-44 animate-pulse rounded-2xl border border-slate-200 bg-slate-50" />
-          ))}
+        <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
+          <p className="text-sm font-semibold text-slate-950">Reading the room...</p>
+          <p className="mt-1 text-sm text-slate-700">
+            Using the latest saved crawl while the AI layer builds your plain-English fix list.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {[0, 1].map((idx) => (
+              <div key={idx} className="h-32 animate-pulse rounded-2xl border border-violet-100 bg-white/70" />
+            ))}
+          </div>
         </div>
       ) : recommendations.length === 0 && !error ? (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">

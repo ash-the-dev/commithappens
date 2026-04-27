@@ -1,5 +1,5 @@
 import "server-only";
-import { getFastAiModel, getPrimaryAiModel } from "@/lib/ai/models";
+import { getFastAiModel } from "@/lib/ai/models";
 import { getOpenAiClient, isOpenAiConfigured } from "@/lib/ai/client";
 import {
   CHANGE_IMPACT_NARRATIVE_JSON_SCHEMA,
@@ -13,6 +13,7 @@ import type {
 import { buildChangeImpactNarrativeInput } from "@/lib/ai/build-change-impact-narrative-input";
 
 const CHANGE_CACHE_TTL_MS = 5 * 60 * 1000;
+const MODEL_TIMEOUT_MS = 6_000;
 const changeNarrativeCache = new Map<
   string,
   { expiresAt: number; value: ChangeImpactNarrativeResult }
@@ -110,32 +111,36 @@ export function buildFallbackChangeImpactNarrative(
 async function callChangeNarrativeModel(
   model: string,
   input: ChangeImpactNarrativeInput,
+  signal?: AbortSignal,
 ): Promise<ChangeImpactNarrativeOutput> {
   const client = getOpenAiClient();
-  const response = await client.responses.create({
-    model,
-    instructions:
-      "You explain whether a deploy/change mattered for CommitHappens users in plain English. Be concise, direct, and useful. Use only provided evidence, avoid unsupported causation claims, and use cautious wording like aligned with/followed by/coincided with. Return valid JSON only.",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Generate a change impact narrative from this evidence:\n${JSON.stringify(input)}`,
-          },
-        ],
-      },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "change_impact_narrative",
-        schema: CHANGE_IMPACT_NARRATIVE_JSON_SCHEMA,
-        strict: true,
+  const response = await client.responses.create(
+    {
+      model,
+      instructions:
+        "You explain whether a deploy/change mattered for CommitHappens users in plain English. Be concise, direct, and useful. Use only provided evidence, avoid unsupported causation claims, and use cautious wording like aligned with/followed by/coincided with. Return valid JSON only.",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Generate a change impact narrative from this evidence:\n${JSON.stringify(input)}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "change_impact_narrative",
+          schema: CHANGE_IMPACT_NARRATIVE_JSON_SCHEMA,
+          strict: true,
+        },
       },
     },
-  });
+    { signal },
+  );
 
   const raw = response.output_text;
   if (!raw || raw.trim().length === 0) {
@@ -152,6 +157,24 @@ async function callChangeNarrativeModel(
     throw new Error(`invalid_schema_output:${validated.error}`);
   }
   return validated.data;
+}
+
+async function callChangeNarrativeModelWithTimeout(
+  model: string,
+  input: ChangeImpactNarrativeInput,
+): Promise<ChangeImpactNarrativeOutput> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("ai_generation_timeout"), MODEL_TIMEOUT_MS);
+  try {
+    return await callChangeNarrativeModel(model, input, controller.signal);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error("ai_generation_timeout");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function generateChangeImpactNarrative(
@@ -175,11 +198,11 @@ export async function generateChangeImpactNarrative(
     return buildFallbackChangeImpactNarrative(facts, "openai_not_configured");
   }
 
-  const models = [getPrimaryAiModel(), getFastAiModel()];
+  const models = [getFastAiModel()];
   let lastError = "ai_generation_failed";
   for (const model of models) {
     try {
-      const data = await callChangeNarrativeModel(model, facts);
+      const data = await callChangeNarrativeModelWithTimeout(model, facts);
       const result: ChangeImpactNarrativeResult = {
         source: "ai",
         model,

@@ -1,5 +1,5 @@
 import "server-only";
-import { getFastAiModel, getPrimaryAiModel } from "@/lib/ai/models";
+import { getFastAiModel } from "@/lib/ai/models";
 import { getOpenAiClient, isOpenAiConfigured } from "@/lib/ai/client";
 import {
   validateWebsiteRecommendationsOutput,
@@ -15,6 +15,7 @@ import type {
 import { buildRecommendedActionsInput } from "@/lib/ai/build-recommended-actions-input";
 
 const RECOMMENDATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const MODEL_TIMEOUT_MS = 6_000;
 const recommendationsCache = new Map<
   string,
   { expiresAt: number; value: WebsiteRecommendationsResult }
@@ -75,32 +76,36 @@ export function buildFallbackWebsiteRecommendations(
 async function callRecommendationsModel(
   model: string,
   input: WebsiteRecommendationsInput,
+  signal?: AbortSignal,
 ): Promise<WebsiteRecommendationsOutput> {
   const client = getOpenAiClient();
-  const response = await client.responses.create({
-    model,
-    instructions:
-      "You generate prioritized recommendations for CommitHappens users (indie developers, creators, small projects). Use plain English, avoid enterprise jargon, and keep advice concrete. Use only provided evidence. Avoid unsupported certainty. Keep actions concise and distinct. Return valid JSON only.",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Generate prioritized recommendations from this evidence:\n${JSON.stringify(input)}`,
-          },
-        ],
-      },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "website_recommendations",
-        schema: WEBSITE_RECOMMENDATIONS_JSON_SCHEMA,
-        strict: true,
+  const response = await client.responses.create(
+    {
+      model,
+      instructions:
+        "You generate prioritized recommendations for CommitHappens users (indie developers, creators, small projects). Use plain English, avoid enterprise jargon, and keep advice concrete. Use only provided evidence. Avoid unsupported certainty. Keep actions concise and distinct. Return valid JSON only.",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Generate prioritized recommendations from this evidence:\n${JSON.stringify(input)}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "website_recommendations",
+          schema: WEBSITE_RECOMMENDATIONS_JSON_SCHEMA,
+          strict: true,
+        },
       },
     },
-  });
+    { signal },
+  );
 
   const raw = response.output_text;
   if (!raw || raw.trim().length === 0) {
@@ -117,6 +122,24 @@ async function callRecommendationsModel(
     throw new Error(`invalid_schema_output:${validated.error}`);
   }
   return validated.data;
+}
+
+async function callRecommendationsModelWithTimeout(
+  model: string,
+  input: WebsiteRecommendationsInput,
+): Promise<WebsiteRecommendationsOutput> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("ai_generation_timeout"), MODEL_TIMEOUT_MS);
+  try {
+    return await callRecommendationsModel(model, input, controller.signal);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error("ai_generation_timeout");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function generateWebsiteRecommendations(
@@ -140,11 +163,11 @@ export async function generateWebsiteRecommendations(
     return buildFallbackWebsiteRecommendations(facts);
   }
 
-  const models = [getPrimaryAiModel(), getFastAiModel()];
+  const models = [getFastAiModel()];
   let lastError = "ai_generation_failed";
   for (const model of models) {
     try {
-      const data = await callRecommendationsModel(model, facts);
+      const data = await callRecommendationsModelWithTimeout(model, facts);
       const result: WebsiteRecommendationsResult = {
         source: "ai",
         model,

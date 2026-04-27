@@ -35,7 +35,15 @@ export function FlaggedActivityCard({ items }: Props) {
       subtitle="A short list of the weirdest recent signals — not a judgment of your character."
     >
       {items.length === 0 ? (
-        <p className="text-sm text-slate-700">No cursed energy detected. For now.</p>
+        <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4">
+          <p className="text-sm font-semibold text-slate-950">🛡️ No cursed energy detected. For now.</p>
+          <p className="mt-2 text-sm text-slate-700">
+            <span className="font-semibold">Why it matters:</span> no flagged behavior means stored traffic is calm, not that the internet became trustworthy.
+          </p>
+          <p className="mt-2 text-sm text-slate-700">
+            <span className="font-semibold">Do this next:</span> keep an eye on this after launches and traffic spikes.
+          </p>
+        </div>
       ) : (
         <ul className="space-y-3">
           {items.map((item) => (
@@ -51,7 +59,7 @@ export function FlaggedActivityCard({ items }: Props) {
                         item.severity,
                       )}`}
                     >
-                      {item.severity}
+                      {item.severity === "high" ? "🚨 " : item.severity === "medium" ? "⚠️ " : "📡 "}{item.severity}
                     </span>
                     <p className="truncate text-sm font-medium text-slate-950">{item.description}</p>
                   </div>

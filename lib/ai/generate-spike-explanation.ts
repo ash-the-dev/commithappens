@@ -1,5 +1,5 @@
 import "server-only";
-import { getFastAiModel, getPrimaryAiModel } from "@/lib/ai/models";
+import { getFastAiModel } from "@/lib/ai/models";
 import { getOpenAiClient, isOpenAiConfigured } from "@/lib/ai/client";
 import {
   SPIKE_EXPLANATION_JSON_SCHEMA,
@@ -14,6 +14,7 @@ import { buildSpikeExplanationInput } from "@/lib/ai/build-spike-explanation-inp
 import type { WebsiteAnomaly } from "@/lib/db/insights";
 
 const SPIKE_CACHE_TTL_MS = 5 * 60 * 1000;
+const MODEL_TIMEOUT_MS = 6_000;
 const spikeCache = new Map<
   string,
   { expiresAt: number; value: SpikeExplanationResult }
@@ -84,32 +85,36 @@ export function buildFallbackSpikeExplanation(
 async function callSpikeModel(
   model: string,
   facts: SpikeExplanationInput,
+  signal?: AbortSignal,
 ): Promise<SpikeExplanationOutput> {
   const client = getOpenAiClient();
-  const response = await client.responses.create({
-    model,
-    instructions:
-      "You explain weird dashboard shifts for CommitHappens users in plain English. Be concise, honest, and slightly playful without being flippant. Use only provided evidence. Avoid hard causation claims; describe likely contributing factors and correlations. Return only valid JSON.",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Explain this anomaly evidence:\n${JSON.stringify(facts)}`,
-          },
-        ],
-      },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "spike_explanation",
-        schema: SPIKE_EXPLANATION_JSON_SCHEMA,
-        strict: true,
+  const response = await client.responses.create(
+    {
+      model,
+      instructions:
+        "You explain weird dashboard shifts for CommitHappens users in plain English. Be concise, honest, and slightly playful without being flippant. Use only provided evidence. Avoid hard causation claims; describe likely contributing factors and correlations. Return only valid JSON.",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Explain this anomaly evidence:\n${JSON.stringify(facts)}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "spike_explanation",
+          schema: SPIKE_EXPLANATION_JSON_SCHEMA,
+          strict: true,
+        },
       },
     },
-  });
+    { signal },
+  );
 
   const raw = response.output_text;
   if (!raw || raw.trim().length === 0) {
@@ -126,6 +131,24 @@ async function callSpikeModel(
     throw new Error(`invalid_schema_output:${validated.error}`);
   }
   return validated.data;
+}
+
+async function callSpikeModelWithTimeout(
+  model: string,
+  facts: SpikeExplanationInput,
+): Promise<SpikeExplanationOutput> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("ai_generation_timeout"), MODEL_TIMEOUT_MS);
+  try {
+    return await callSpikeModel(model, facts, controller.signal);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error("ai_generation_timeout");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function generateSpikeExplanation(
@@ -152,11 +175,11 @@ export async function generateSpikeExplanation(
     return buildFallbackSpikeExplanation(facts, "openai_not_configured");
   }
 
-  const models = [getPrimaryAiModel(), getFastAiModel()];
+  const models = [getFastAiModel()];
   let lastError = "ai_generation_failed";
   for (const model of models) {
     try {
-      const data = await callSpikeModel(model, facts);
+      const data = await callSpikeModelWithTimeout(model, facts);
       const result: SpikeExplanationResult = {
         source: "ai",
         model,

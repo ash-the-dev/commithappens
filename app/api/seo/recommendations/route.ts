@@ -4,15 +4,18 @@ import { getBillingAccess } from "@/lib/billing/access";
 import { getPool } from "@/lib/db/pool";
 import { getWebsiteForUser } from "@/lib/db/websites";
 import { getLatestSeoCrawlRun } from "@/lib/db/seo-crawl-intelligence";
-import { requireFeature } from "@/lib/entitlements";
+import { getPlanEntitlements, requireFeature } from "@/lib/entitlements";
 import {
   generateAiSeoRecommendations,
+  type AiSeoRecommendationsResult,
   type GenerateAiSeoRecommendationsInput,
   type SeoRecommendationPageInput,
 } from "@/lib/seo/aiRecommendations";
 import { buildSiteKeywordContext } from "@/lib/seo/keyword-context";
 
 export const runtime = "nodejs";
+
+const inFlightRecommendations = new Map<string, Promise<AiSeoRecommendationsResult>>();
 
 type CrawlPageRow = {
   url: string;
@@ -81,6 +84,19 @@ function compactReport(report: unknown): unknown {
   };
 }
 
+function crawlCadenceNote(planLabel: string): string {
+  if (planLabel === "Situationship") {
+    return "Since your plan only includes one crawl this month, fix these first before spending the next crawl.";
+  }
+  if (planLabel === "Committed") {
+    return "Since your plan includes one crawl per week per site, batch these fixes before your next crawl.";
+  }
+  if (planLabel === "All In") {
+    return "Since your plan includes one crawl per site per 24 hours, fix the highest-impact items before using the next crawl.";
+  }
+  return "SEO crawl guidance is based on the crawl cadence available for this plan.";
+}
+
 export async function GET(request: Request): Promise<Response> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -90,6 +106,7 @@ export async function GET(request: Request): Promise<Response> {
   const billing = await getBillingAccess(session.user.id, session.user.email);
   const seoAccess = requireFeature(billing.accountKind, "seoCrawl");
   const aiAccess = requireFeature(billing.accountKind, "aiInsights");
+  const plan = getPlanEntitlements(billing.accountKind);
   if (!seoAccess.ok) {
     return json(
       {
@@ -133,12 +150,28 @@ export async function GET(request: Request): Promise<Response> {
     model: null,
     generatedAt: new Date().toISOString(),
     recommendations: [],
-    summary: "No crawl report data is available yet. Run SEO Crawl first, then this will turn into page-specific fixes.",
+    summary:
+      "I don’t have a clean crawl for this site yet. Run SEO Crawl and I’ll have actual page-level advice instead of throwing glitter at guesses.",
+    sections: [
+      {
+        title: "What I’m seeing",
+        body: "No valid crawl-backed page data is available for recommendations yet.",
+      },
+      {
+        title: "What to do next",
+        body: "Run SEO Crawl once. After it saves page data, recommendations will use the saved crawl instead of live guessing.",
+      },
+    ],
+    checklist: ["Run SEO Crawl.", "Fix the highest-priority pages first.", "Use the next crawl to verify meaningful edits."],
+    priority: "none" as const,
+    confidence: "needs more data" as const,
+    basedOn: ["No latest valid SEO crawl run was available for this site."],
     error: "no_crawl_data",
   };
   if (!run) {
     return json({
       ok: true,
+      crawlRunId: null,
       runCreatedAt: null,
       keywordContext,
       ...emptyResult,
@@ -196,6 +229,7 @@ export async function GET(request: Request): Promise<Response> {
   if (pages.length === 0) {
     return json({
       ok: true,
+      crawlRunId: run.id,
       runCreatedAt: run.created_at,
       keywordContext,
       ...emptyResult,
@@ -224,11 +258,32 @@ export async function GET(request: Request): Promise<Response> {
       brokenLinkTargets: pages.flatMap((p) => p.brokenLinkTargets).slice(0, 20),
     },
     keywordContext,
+    planLabel: plan.label,
+    crawlCadenceNote: crawlCadenceNote(plan.label),
   };
 
-  const result = await generateAiSeoRecommendations(payload);
+  const requestKey = `${siteId}:${run.id}`;
+  let pending = inFlightRecommendations.get(requestKey);
+  if (!pending) {
+    pending = generateAiSeoRecommendations(payload);
+    inFlightRecommendations.set(requestKey, pending);
+    void pending.then(
+      () => {
+        if (inFlightRecommendations.get(requestKey) === pending) {
+          inFlightRecommendations.delete(requestKey);
+        }
+      },
+      () => {
+        if (inFlightRecommendations.get(requestKey) === pending) {
+          inFlightRecommendations.delete(requestKey);
+        }
+      },
+    );
+  }
+  const result = await pending;
   return json({
     ok: true,
+    crawlRunId: run.id,
     runCreatedAt: run.created_at,
     keywordContext,
     ...result,

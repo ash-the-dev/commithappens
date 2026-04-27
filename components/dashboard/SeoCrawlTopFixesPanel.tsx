@@ -38,7 +38,10 @@ function humanizeType(t: string): string {
 function PanelHeader() {
   return (
     <div className="flex items-start justify-between gap-2">
-      <p className="ui-section-title text-white/55">Top fixes</p>
+      <div>
+        <p className="ui-section-title text-white/55">Top fixes</p>
+        <p className="mt-1 text-xs text-white/65">Fix these before polishing charts. They carry the most search clarity.</p>
+      </div>
       <InfoTooltip className="shrink-0" buttonClassName={btn} {...getMetricExplanation("top_fixes")} />
     </div>
   );
@@ -59,22 +62,25 @@ export function SeoCrawlTopFixesPanel({ issues }: Props) {
   return (
     <div className="space-y-3">
       <PanelHeader />
-      <p className="text-xs text-white/55">The three URLs most likely to make future-you sigh.</p>
-      <ul className="space-y-3">
+      <p className="text-xs text-white/55">The three URLs most likely to make future-you sigh, ranked by impact.</p>
+      <ul className="space-y-2.5">
         {issues.map((item) => {
           const expl = getIssueExplanation(item.issue_type);
           const fallback = getSeoRecommendation(item.issue_type);
           const hasEnrichedCopy = Boolean(item.plainMeaning || item.whyItMatters || item.recommendedFix);
           const issueTitle = hasEnrichedCopy && item.title ? item.title : fallback.title;
           const plainMeaning = item.plainMeaning || item.description || fallback.plainMeaning;
-          const whyItMatters = item.whyItMatters || fallback.whyItMatters;
+          const whyItMatters =
+            item.issue_type === "missing_h1" || item.issue_type === "missing_title" || item.issue_type === "missing_meta_description"
+              ? "Without this, Google has to guess what your page is about. Sometimes it guesses wrong."
+              : item.whyItMatters || fallback.whyItMatters;
           const recommendedFix = item.recommendedFix || item.recommendation || fallback.recommendedFix;
           const priorityLabel = item.priorityLabel || fallback.priorityLabel;
           const effort = item.effort || fallback.effort;
           return (
             <li
               key={`${item.issue_type}-${item.url}`}
-              className="relative rounded-2xl border border-white/12 bg-linear-to-b from-white/8 to-white/2 p-3 pr-10"
+              className="relative rounded-2xl border border-white/12 bg-linear-to-b from-white/8 to-white/2 p-2.5 pr-10"
             >
               <div className="absolute right-2 top-2 z-10">
                 <InfoTooltip
@@ -103,12 +109,12 @@ export function SeoCrawlTopFixesPanel({ issues }: Props) {
                   {item.internal_links_count === 0 ? " (we did not see any links in the payload)" : ""}
                 </p>
               ) : null}
-              <p className="mt-2 text-base font-semibold text-white">{issueTitle}</p>
+              <p className="mt-2 text-sm font-semibold text-white">{issueTitle}</p>
               {item.url ? <p className="mt-1 break-all text-xs font-medium text-white/55">{item.url}</p> : null}
               {!hasEnrichedCopy && item.title ? (
                 <p className="mt-0.5 line-clamp-1 text-xs text-white/50">Title: {item.title}</p>
               ) : null}
-              <div className="mt-3 grid gap-2 text-xs leading-relaxed text-white/75">
+              <div className="mt-2.5 grid gap-1.5 text-xs leading-relaxed text-white/75">
                 <div>
                   <p className="font-bold uppercase tracking-[0.12em] text-white/45">What it means</p>
                   <p className="mt-0.5">{plainMeaning}</p>
@@ -121,6 +127,9 @@ export function SeoCrawlTopFixesPanel({ issues }: Props) {
                   <p className="font-bold uppercase tracking-[0.12em] text-white/45">What to do next</p>
                   <p className="mt-0.5">{recommendedFix}</p>
                 </div>
+                <p className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-2 py-1.5 text-white/80">
+                  Expected result: clearer indexing and stronger search previews.
+                </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-bold uppercase tracking-[0.12em] text-white/45">Effort</span>
                   <span className="rounded-full border border-white/15 bg-white/8 px-2 py-0.5 font-semibold text-white/80">

@@ -13,6 +13,7 @@ function json(data: unknown, status = 200): Response {
 type Body = {
   website_id?: string;
   question?: string;
+  current_tab?: string | null;
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -40,7 +41,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!site) return json({ ok: false, error: "website_not_found" }, 404);
 
   try {
-    const result = await answerWebsiteQuestion(websiteId, question);
+    const result = await answerWebsiteQuestion(websiteId, question, {
+      currentTab: typeof body.current_tab === "string" ? body.current_tab.trim() : null,
+    });
     return json({ ok: true, answer: result }, 200);
   } catch (err) {
     console.error("[ai.ask-dashboard] failed", err);

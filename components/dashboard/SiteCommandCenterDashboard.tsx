@@ -82,6 +82,10 @@ function compactPageLabel(path: string | null | undefined): string {
   return label.length > 22 ? `${label.slice(0, 10)}...${label.slice(-8)}` : label;
 }
 
+function issueNameLower(name: string): string {
+  return name.toLowerCase().replaceAll("_", " ");
+}
+
 function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
   const chartData = trends.seoHealth.map((point, index) => ({
     label: point.label,
@@ -91,6 +95,19 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
   const hasData = chartData.length > 0;
   const maxIssues = Math.max(1, ...chartData.map((point) => point.issues));
   const latest = chartData.at(-1);
+  const previous = chartData.at(-2);
+  const healthDelta = latest && previous ? latest.score - previous.score : 0;
+  const trendSymbol = !latest || !previous ? "→" : healthDelta > 0 ? "↑" : healthDelta < 0 ? "↓" : "→";
+  const trendLabel = !latest || !previous ? "baseline" : healthDelta > 0 ? "improving" : healthDelta < 0 ? "declining" : "stable";
+  const issueDriver = latest && latest.issues > 0 ? "small structure issues are stacking up quietly" : "the crawl is staying clean";
+  const interpretation =
+    latest && previous
+      ? healthDelta > 0
+        ? `Health improved by ${healthDelta} point${healthDelta === 1 ? "" : "s"}. ${issueDriver}.`
+        : healthDelta < 0
+          ? `Health dipped by ${Math.abs(healthDelta)} point${Math.abs(healthDelta) === 1 ? "" : "s"}. ${issueDriver}.`
+          : `Health is stable overall, but ${issueDriver}.`
+      : "This is the baseline. Run another crawl to see whether the site is improving or quietly getting weird.";
 
   return (
     <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
@@ -103,7 +120,7 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
           </p>
         </div>
         <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-          {trends.source === "partial" ? "Waiting for data" : "Stored data"}
+          {trendSymbol} {trendLabel}
         </span>
       </div>
       <div className="ui-chart-shell mt-4 min-h-40 p-3">
@@ -112,9 +129,11 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
             <div className="flex items-end justify-between gap-2">
               {chartData.map((point, index) => (
                 <div key={`${point.label}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-                  <div className="flex h-24 w-full max-w-8 items-end justify-center rounded-full bg-slate-100 px-1">
+                  <div className="flex h-20 w-full max-w-8 items-end justify-center rounded-full bg-slate-100/60 px-1">
                     <span
-                      className="w-full rounded-full bg-linear-to-t from-blue-500 to-cyan-300"
+                      className={`w-full rounded-full bg-linear-to-t from-blue-500 to-cyan-300 ${
+                        index === chartData.length - 1 ? "ring-2 ring-blue-300 ring-offset-2" : "opacity-45"
+                      }`}
                       style={{ height: `${Math.max(5, point.score)}%` }}
                       title={`${point.label}: ${point.score} health, ${point.issues} issues`}
                     />
@@ -124,19 +143,23 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
               ))}
             </div>
             <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-              <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+              <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 leading-relaxed">
                 Latest health: <span className="font-semibold text-slate-950">{latest?.score ?? 0}/100</span>
+                <span className="mt-1 block text-[11px] text-slate-600">{interpretation}</span>
               </p>
-              <p className="rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
+              <p className="rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2 leading-relaxed">
                 Latest issues: <span className="font-semibold text-slate-950">{latest?.issues ?? 0}</span>
+                <span className="mt-1 block text-[11px] text-slate-600">
+                  What to do next: fix structure issues before spending time on polish.
+                </span>
               </p>
             </div>
             <div className="space-y-1.5">
               {chartData.slice(-3).map((point, index) => (
                 <div key={`${point.label}-${index}-issues`} className="flex items-center gap-2 text-[11px] text-slate-500">
                   <span className="w-14 truncate">{point.label}</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-violet-400" style={{ width: `${barPercent(point.issues, maxIssues)}%` }} />
+                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-100/70">
+                    <div className="h-full rounded-full bg-violet-400/70" style={{ width: `${barPercent(point.issues, maxIssues)}%` }} />
                   </div>
                   <span className="w-8 text-right tabular-nums">{point.issues}</span>
                 </div>
@@ -154,18 +177,34 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
 }
 
 function AttentionCard({ items }: { items: string[] }) {
+  const fixNow = items.slice(0, 3);
+  const quickWins = items.slice(3, 6);
+  const canWait = items.slice(6, 9);
+  const groups = [
+    { title: "🔥 Fix now", items: fixNow, className: "border-rose-200 bg-rose-50/80 text-rose-950" },
+    { title: "⚡ Quick wins", items: quickWins, className: "border-amber-200 bg-amber-50/80 text-amber-950" },
+    { title: "💤 Can wait", items: canWait, className: "border-slate-200 bg-slate-50 text-slate-700" },
+  ].filter((group) => group.items.length > 0);
+
   return (
     <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-600">Needs attention</p>
       <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">What to look at now</h2>
+      <p className="mt-1 text-sm font-medium text-slate-700">
+        These are the fastest ways to stop quietly losing search traffic.
+      </p>
       <div className="mt-4 space-y-3">
         {items.length > 0 ? (
-          items.slice(0, 4).map((item, index) => (
-            <div key={`${item}-${index}`} className="flex gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/70 p-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-300 bg-white text-sm font-black text-amber-700">
-                !
-              </span>
-              <p className="text-sm leading-relaxed text-slate-800">{item}</p>
+          groups.map((group) => (
+            <div key={group.title} className={`rounded-2xl border p-3 ${group.className}`}>
+              <p className="text-xs font-black uppercase tracking-[0.14em]">{group.title}</p>
+              <ul className="mt-2 space-y-2">
+                {group.items.map((item, index) => (
+                  <li key={`${group.title}-${item}-${index}`} className="text-sm leading-relaxed">
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
           ))
         ) : (
@@ -227,16 +266,24 @@ function IssueBreakdownCard({ issues }: { issues: IssueBreakdownItem[] }) {
   const total = issues.reduce((sum, item) => sum + item.value, 0);
   const data = issues.filter((item) => item.value > 0);
   const maxIssueValue = Math.max(1, ...data.map((item) => item.value));
+  const topIssue = [...data].sort((a, b) => b.value - a.value)[0] ?? null;
+  const topIssueName = topIssue ? issueNameLower(topIssue.name) : "structure";
+  const interpretation = topIssue
+    ? `${topIssue.value} page${topIssue.value === 1 ? "" : "s"} are underperforming due to missing structure (mostly ${topIssueName}).`
+    : "No issue family is leading the pack right now.";
 
   return (
     <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">Issue mix</p>
       <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Crawl issue breakdown</h2>
-      <p className="mt-1 text-sm text-slate-600">Current issue families from the latest valid crawl.</p>
+      <p className="mt-1 text-sm font-medium text-slate-800">{interpretation}</p>
+      <p className="mt-1 text-xs text-slate-600">
+        This won’t break your site, but it weakens how search engines understand your pages.
+      </p>
       <div className="mt-4 min-h-40">
         {total > 0 ? (
           <div className="space-y-3">
-            <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+            <div className="flex h-2 overflow-hidden rounded-full bg-slate-100">
               {data.map((item, index) => (
                 <span
                   key={item.name}
@@ -258,7 +305,7 @@ function IssueBreakdownCard({ issues }: { issues: IssueBreakdownItem[] }) {
                     </span>
                     <span className="font-semibold tabular-nums text-slate-950">{item.value}</span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-1 overflow-hidden rounded-full bg-slate-100">
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${barPercent(item.value, maxIssueValue)}%`, background: donutColors[index % donutColors.length] }}

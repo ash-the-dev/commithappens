@@ -22,7 +22,18 @@ export function AnalystAnswerView({ result }: Props) {
         ) : null}
       </div>
 
-      <p className="mt-3 text-sm text-slate-900">{d.answer}</p>
+      {d.sections?.length ? (
+        <div className="mt-4 space-y-3">
+          {d.sections.map((section) => (
+            <div key={`${section.title}-${section.body.slice(0, 24)}`} className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">{section.title}</p>
+              <p className="mt-1 whitespace-pre-line text-sm text-slate-900">{section.body}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 whitespace-pre-line text-sm text-slate-900">{d.answer}</p>
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div>
@@ -53,6 +64,13 @@ export function AnalystAnswerView({ result }: Props) {
 
       {d.limitation_note ? (
         <p className="mt-3 text-xs text-amber-900">{d.limitation_note}</p>
+      ) : null}
+      {d.priority || d.confidence ? (
+        <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+          {d.priority ? `Priority: ${d.priority}` : null}
+          {d.priority && d.confidence ? " · " : null}
+          {d.confidence ? `Confidence: ${d.confidence}` : null}
+        </p>
       ) : null}
       <p className="mt-2 text-xs text-slate-600">{d.confidence_note}</p>
     </div>
