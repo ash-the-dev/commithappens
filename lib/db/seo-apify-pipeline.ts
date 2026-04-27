@@ -5,9 +5,13 @@ import { parseResponseCodesFromNormalizedRows } from "@/lib/seo/response-codes";
 import type { NormalizedCrawlRow } from "@/lib/seo/apify/normalize";
 import { buildSeoCrawlRunSummary, classifySeoCrawlPage } from "@/lib/seo/crawl/crawl-classification";
 import { urlsBelongToSameSite } from "@/lib/seo/crawl-request-security";
-import { recordCompletedScan } from "@/lib/db/scans";
+import { completeSeoScanForCrawlRun, failSeoScanForCrawlRun } from "@/lib/db/scans";
 
 const ensured = new Set<string>();
+
+export function seoScanSourceForCrawlRun(crawlRunId: string): string {
+  return `seo-crawl:${crawlRunId}`;
+}
 
 async function ensureSeoPipelineTables() {
   if (ensured.has("seo-apify-pipeline")) return;
@@ -236,15 +240,24 @@ export async function markSeoCrawlRunFailedByProviderRunId(input: {
 }) {
   await ensureSeoPipelineTables();
   const pool = getPool();
-  await pool.query(
+  const result = await pool.query<{ id: string; site_id: string }>(
     `UPDATE seo_crawl_runs
      SET status = 'failed',
          error_message = $2,
          finished_at = now(),
          updated_at = now()
-     WHERE provider_run_id = $1 OR actor_run_id = $1`,
+     WHERE provider_run_id = $1 OR actor_run_id = $1
+     RETURNING id::text, site_id`,
     [input.providerRunId, input.errorMessage.slice(0, 1000)],
   );
+  for (const row of result.rows) {
+    await failSeoScanForCrawlRun({
+      siteId: row.site_id,
+      crawlRunId: row.id,
+      errorMessage: input.errorMessage,
+      rawResult: { crawlRunId: row.id, providerRunId: input.providerRunId },
+    }).catch((err) => console.error("[seo-scan] failed to mark scan failed", { crawlRunId: row.id, err }));
+  }
 }
 
 export async function markSeoCrawlRunFailedById(input: {
@@ -253,15 +266,25 @@ export async function markSeoCrawlRunFailedById(input: {
 }) {
   await ensureSeoPipelineTables();
   const pool = getPool();
-  await pool.query(
+  const result = await pool.query<{ site_id: string }>(
     `UPDATE seo_crawl_runs
      SET status = 'failed',
          error_message = $2,
          finished_at = now(),
          updated_at = now()
-     WHERE id = $1::uuid`,
+     WHERE id = $1::uuid
+     RETURNING site_id`,
     [input.crawlRunId, input.errorMessage.slice(0, 1000)],
   );
+  const row = result.rows[0];
+  if (row) {
+    await failSeoScanForCrawlRun({
+      siteId: row.site_id,
+      crawlRunId: input.crawlRunId,
+      errorMessage: input.errorMessage,
+      rawResult: { crawlRunId: input.crawlRunId },
+    }).catch((err) => console.error("[seo-scan] failed to mark scan failed", { crawlRunId: input.crawlRunId, err }));
+  }
 }
 
 export async function getSeoCrawlRunByProviderRunId(providerRunId: string): Promise<{
@@ -428,6 +451,9 @@ export async function persistApifySeoResults(input: {
 }) {
   await ensureSeoPipelineTables();
   const filteredResults = filterResultsToCrawlDomain(input.results, input.domain);
+  if (input.results.pages.length === 0) {
+    throw new Error(`Crawl dataset did not contain any page rows for ${input.domain}.`);
+  }
   if (filteredResults.pages.length === 0 && input.results.pages.length > 0) {
     const firstUrl = input.results.pages[0]?.url ?? "unknown";
     throw new Error(`Crawl dataset did not contain pages for ${input.domain}. First returned URL: ${firstUrl}`);
@@ -603,11 +629,11 @@ export async function persistApifySeoResults(input: {
     client.release();
   }
   if (completedScanSummary) {
-    await recordCompletedScan({
+    await completeSeoScanForCrawlRun({
       siteId: input.siteId,
-      scanType: "seo",
+      crawlRunId: input.crawlRunId,
       resultSummary: completedScanSummary,
-      source: "seo-crawl-pipeline",
+      rawResult: { crawlRunId: input.crawlRunId, providerDatasetId: input.providerDatasetId },
     });
   }
 }

@@ -54,6 +54,7 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
         : "bad";
 
   const topLanding = analytics.topPages[0]?.path ?? null;
+  const topLandingLabel = topLanding === "/" ? "Homepage" : topLanding;
 
   return (
     <DashboardSection
@@ -232,7 +233,7 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
           <p className="mt-3 text-sm text-slate-800">
             <span className="font-semibold">What happened:</span>{" "}
             {topLanding
-              ? `Top page (14d): ${topLanding} (${analytics.topPages[0]?.views.toLocaleString("en-US")} views).`
+              ? `Top page (14d): ${topLandingLabel} (${analytics.topPages[0]?.views.toLocaleString("en-US")} views).`
               : "No pageview paths yet in the last 14 days."}
           </p>
           <p className="mt-2 text-sm text-slate-700">
@@ -245,40 +246,13 @@ export function SiteSeoHealth({ domain, analytics }: Props) {
           </p>
 
           <div className="mt-4 rounded-xl border border-slate-200/80 bg-white/70 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-              Planned integrations
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">What to check first</p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-700">
+              Start with the pages getting real visits. If the homepage is the only page with traffic, make sure
+              it clearly explains what you do, loads cleanly, and points people to the next useful action.
             </p>
-            <div className="mt-3 space-y-2 text-xs text-slate-700">
-              <p>
-                <span className="font-semibold">Google Search Console (GSC)</span> = the closest thing to “what
-                Google saw” for impressions/clicks, coverage/indexing issues, and queries/pages.
-              </p>
-              <p>
-                <span className="font-semibold">Screaming Frog</span> = best-in-class crawl exports (chains,
-                canonicals, duplicates, indexability). Realistic pattern: scheduled crawl → export → import rows
-                (not a live dependency in the product hot path).
-              </p>
-              <p>
-                <span className="font-semibold">PageSpeed / lab</span> = great for reproducible regressions;
-                <span className="font-semibold"> RUM</span> (what you already collect) = what real users feel.
-              </p>
-            </div>
           </div>
         </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-          Honest product note (so nobody gets gaslit)
-        </p>
-        <p className="mt-2 text-sm text-slate-800">
-          CommitHappens can already ground SEO conversations in{" "}
-          <span className="font-semibold">real traffic</span>,{" "}
-          <span className="font-semibold">real performance beacons</span>, and{" "}
-          <span className="font-semibold">HTTP uptime</span>. The “indexability / canonical / duplicate /
-          robots.txt / sitemap graph” layer needs imported crawl + GSC artifacts — that’s the next engineering
-          slice, not a copywriting problem.
-        </p>
       </div>
     </DashboardSection>
   );

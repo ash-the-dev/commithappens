@@ -81,11 +81,13 @@ async function matchingRunIdsForDomain(runIds: string[], primaryDomain: string |
 
 export async function getLatestSeoCrawlRun(siteId: string): Promise<SeoCrawlRunRow | null> {
   const pool = getPool();
-  const site = await pool.query<{ primary_domain: string }>(
-    `SELECT primary_domain FROM websites WHERE id = $1::uuid LIMIT 1`,
+  const site = await pool.query<{ primary_domain: string; owner_user_id: string }>(
+    `SELECT primary_domain, owner_user_id::text FROM websites WHERE id = $1::uuid LIMIT 1`,
     [siteId],
   );
   const primaryDomain = site.rows[0]?.primary_domain ?? null;
+  const ownerUserId = site.rows[0]?.owner_user_id ?? null;
+  const primaryHost = primaryDomain ? normalizeHost(primaryDomain) : null;
   const r = await pool.query<{
     id: string;
     site_id: string;
@@ -108,12 +110,16 @@ export async function getLatestSeoCrawlRun(siteId: string): Promise<SeoCrawlRunR
        coalesce(critical_count, 0)::text AS critical_count,
        coalesce(pages_crawled, 0)::text AS pages_crawled
      FROM seo_crawl_runs
-     WHERE site_id = $1::text
+     WHERE (
+         site_id = $1::text
+         OR ($2::uuid IS NOT NULL AND user_id = $2::uuid)
+         OR ($3::text IS NOT NULL AND lower(coalesce(domain, '')) LIKE '%' || $3::text || '%')
+       )
        AND status IN ('succeeded', 'completed')
        AND coalesce(pages_crawled, 0) > 0
      ORDER BY created_at DESC
      LIMIT 20`,
-    [siteId],
+    [siteId, ownerUserId, primaryHost],
   );
   const matchingRunIds = await matchingRunIdsForDomain(r.rows.map((row) => row.id), primaryDomain);
   const row = r.rows.find((candidate) => matchingRunIds.has(candidate.id));
@@ -136,12 +142,23 @@ export async function countSeoCrawlRunsForSiteSince(
   since: Date,
 ): Promise<number> {
   const pool = getPool();
+  const site = await pool.query<{ primary_domain: string; owner_user_id: string }>(
+    `SELECT primary_domain, owner_user_id::text FROM websites WHERE id = $1::uuid LIMIT 1`,
+    [siteId],
+  );
+  const primaryDomain = site.rows[0]?.primary_domain ?? null;
+  const ownerUserId = site.rows[0]?.owner_user_id ?? null;
+  const primaryHost = primaryDomain ? normalizeHost(primaryDomain) : null;
   const result = await pool.query<{ count: string }>(
     `SELECT count(*)::text AS count
      FROM seo_crawl_runs
-     WHERE site_id = $1::text
-       AND created_at >= $2::timestamptz`,
-    [siteId, since.toISOString()],
+     WHERE (
+         site_id = $1::text
+         OR ($2::uuid IS NOT NULL AND user_id = $2::uuid)
+         OR ($3::text IS NOT NULL AND lower(coalesce(domain, '')) LIKE '%' || $3::text || '%')
+       )
+       AND created_at >= $4::timestamptz`,
+    [siteId, ownerUserId, primaryHost, since.toISOString()],
   );
   return Number(result.rows[0]?.count ?? 0);
 }
@@ -159,11 +176,13 @@ export type SeoCrawlRunTrendPoint = {
 export async function getSeoCrawlRunHistory(siteId: string, limit = 16): Promise<SeoCrawlRunTrendPoint[]> {
   const safe = Math.max(1, Math.min(40, limit));
   const pool = getPool();
-  const site = await pool.query<{ primary_domain: string }>(
-    `SELECT primary_domain FROM websites WHERE id = $1::uuid LIMIT 1`,
+  const site = await pool.query<{ primary_domain: string; owner_user_id: string }>(
+    `SELECT primary_domain, owner_user_id::text FROM websites WHERE id = $1::uuid LIMIT 1`,
     [siteId],
   );
   const primaryDomain = site.rows[0]?.primary_domain ?? null;
+  const ownerUserId = site.rows[0]?.owner_user_id ?? null;
+  const primaryHost = primaryDomain ? normalizeHost(primaryDomain) : null;
   const r = await pool.query<{
     id: string;
     created_at: string;
@@ -184,14 +203,18 @@ export async function getSeoCrawlRunHistory(siteId: string, limit = 16): Promise
          coalesce(critical_count, 0)::text AS critical_count,
          coalesce(pages_crawled, 0)::text AS pages_crawled
        FROM seo_crawl_runs
-       WHERE site_id = $1::text
+       WHERE (
+           site_id = $1::text
+           OR ($2::uuid IS NOT NULL AND user_id = $2::uuid)
+           OR ($3::text IS NOT NULL AND lower(coalesce(domain, '')) LIKE '%' || $3::text || '%')
+         )
          AND status IN ('succeeded', 'completed')
          AND coalesce(pages_crawled, 0) > 0
        ORDER BY created_at DESC
        LIMIT 40
      ) sub
      ORDER BY created_at ASC`,
-    [siteId],
+    [siteId, ownerUserId, primaryHost],
   );
   const matchingRunIds = await matchingRunIdsForDomain(r.rows.map((row) => row.id), primaryDomain);
   return r.rows.filter((row) => matchingRunIds.has(row.id)).slice(-safe).map((row) => {
@@ -232,20 +255,26 @@ export type SeoCrawlOnPageBreakdown = {
  */
 export async function getSeoCrawlOnPageBreakdown(siteId: string): Promise<SeoCrawlOnPageBreakdown | null> {
   const pool = getPool();
-  const site = await pool.query<{ primary_domain: string }>(
-    `SELECT primary_domain FROM websites WHERE id = $1::uuid LIMIT 1`,
+  const site = await pool.query<{ primary_domain: string; owner_user_id: string }>(
+    `SELECT primary_domain, owner_user_id::text FROM websites WHERE id = $1::uuid LIMIT 1`,
     [siteId],
   );
   const primaryDomain = site.rows[0]?.primary_domain ?? null;
+  const ownerUserId = site.rows[0]?.owner_user_id ?? null;
+  const primaryHost = primaryDomain ? normalizeHost(primaryDomain) : null;
   const run = await pool.query<{ id: string; created_at: string; pages_crawled: string | null }>(
     `SELECT id, created_at::text, coalesce(pages_crawled, 0)::text AS pages_crawled
      FROM seo_crawl_runs
-     WHERE site_id = $1::text
+     WHERE (
+         site_id = $1::text
+         OR ($2::uuid IS NOT NULL AND user_id = $2::uuid)
+         OR ($3::text IS NOT NULL AND lower(coalesce(domain, '')) LIKE '%' || $3::text || '%')
+       )
        AND status IN ('succeeded', 'completed')
        AND coalesce(pages_crawled, 0) > 0
      ORDER BY created_at DESC
      LIMIT 20`,
-    [siteId],
+    [siteId, ownerUserId, primaryHost],
   );
   const matchingRunIds = await matchingRunIdsForDomain(run.rows.map((row) => row.id), primaryDomain);
   const runRow = run.rows.find((candidate) => matchingRunIds.has(candidate.id));
@@ -353,6 +382,8 @@ export async function getTopCrawlIssues(siteId: string, limit = 3): Promise<SeoC
     [siteId],
   );
   const primaryDomain = site.rows[0]?.primary_domain ?? null;
+  const latestRun = await getLatestSeoCrawlRun(siteId);
+  if (!latestRun) return [];
   try {
     const enriched = await pool.query<{
       url: string | null;
@@ -384,15 +415,7 @@ export async function getTopCrawlIssues(siteId: string, limit = 3): Promise<SeoC
          i.impact_area,
          i.owner_hint
        FROM seo_issues i
-       WHERE i.site_id = $1::text
-         AND i.crawl_run_id = (
-           SELECT id FROM seo_crawl_runs
-           WHERE site_id = $1::text
-             AND status IN ('succeeded', 'completed')
-             AND coalesce(pages_crawled, 0) > 0
-           ORDER BY created_at DESC
-           LIMIT 1
-         )
+       WHERE i.crawl_run_id = $1::uuid
        ORDER BY
          CASE i.severity
            WHEN 'critical' THEN 1
@@ -404,7 +427,7 @@ export async function getTopCrawlIssues(siteId: string, limit = 3): Promise<SeoC
          i.url NULLS LAST,
          i.type
        LIMIT $2`,
-      [siteId, safeLimit],
+      [latestRun.id, safeLimit],
     );
     if (enriched.rows.length > 0) {
       return enriched.rows
@@ -447,15 +470,7 @@ export async function getTopCrawlIssues(siteId: string, limit = 3): Promise<SeoC
   }>(
     `SELECT p.url, p.status::text, p.title, p.h1, p.meta_description, p.links, p.issue_type, p.issue_severity, p.crawl_notes
      FROM seo_crawl_pages p
-     WHERE p.site_id = $1::text
-       AND p.crawl_run_id = (
-         SELECT id FROM seo_crawl_runs
-         WHERE site_id = $1::text
-           AND status IN ('succeeded', 'completed')
-           AND coalesce(pages_crawled, 0) > 0
-         ORDER BY created_at DESC
-         LIMIT 1
-       )
+     WHERE p.crawl_run_id = $1::uuid
        AND coalesce(p.issue_severity, 'healthy') <> 'healthy'
      ORDER BY
        CASE p.issue_severity
@@ -465,8 +480,8 @@ export async function getTopCrawlIssues(siteId: string, limit = 3): Promise<SeoC
          ELSE 4
        END,
        p.url
-     LIMIT $2`,
-    [siteId, safeLimit],
+    LIMIT $2`,
+    [latestRun.id, safeLimit],
   );
   return r.rows
   .filter((row) => urlBelongsToDomain(row.url, primaryDomain))

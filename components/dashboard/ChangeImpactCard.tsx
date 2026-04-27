@@ -1,7 +1,9 @@
 import type { ChangeImpactResult } from "@/lib/db/change-impact";
 import { DashboardSection } from "@/components/dashboard/DashboardSection";
+import { ChangeLogForm } from "@/components/dashboard/ChangeLogForm";
 
 type Props = {
+  siteId: string;
   impacts: ChangeImpactResult[];
 };
 
@@ -26,19 +28,25 @@ function impactBadge(flag: string): string {
   return flag;
 }
 
-export function ChangeImpactCard({ impacts }: Props) {
+export function ChangeImpactCard({ siteId, impacts }: Props) {
   return (
     <DashboardSection
       kicker="Change log"
       title="What changed (and whether the internet cared)"
-      subtitle="Deployments without notes are just vibes. This is the receipts section."
+      subtitle="Log shipped changes here, then this section compares what happened before and after."
     >
+      <ChangeLogForm siteId={siteId} />
+
       {impacts.length === 0 ? (
-        <p className="text-sm text-slate-700">
-          No deploy notes yet. Track changes so this can call out what mattered.
-        </p>
+        <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-700">
+          <p className="font-semibold text-slate-950">No changes logged yet.</p>
+          <p className="mt-1">
+            Add a deploy, content edit, SEO update, campaign, or config change above. After it is logged, the dashboard
+            can compare traffic, uptime, and risk around that timestamp.
+          </p>
+        </div>
       ) : (
-        <ul className="max-h-[460px] space-y-3 overflow-y-auto pr-1">
+        <ul className="mt-4 max-h-[460px] space-y-3 overflow-y-auto pr-1">
           {impacts.map((impact) => (
             <li
               key={impact.change_log_id}

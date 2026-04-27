@@ -21,6 +21,40 @@ export const DEFAULT_SEO_KEYWORD_CONTEXT: SeoKeywordContext = {
   avoidKeywords: ["cheap hack", "guaranteed rankings"],
 };
 
+function wordsFromDomain(domain: string): string[] {
+  const host = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0] ?? domain;
+  const root = host.split(".")[0] ?? host;
+  return root
+    .split(/[-_]+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+}
+
+export function buildSiteKeywordContext(input: {
+  name?: string | null;
+  primaryDomain: string;
+}): SeoKeywordContext {
+  const domain = input.primaryDomain.trim().toLowerCase();
+  const name = input.name?.trim();
+  const domainWords = wordsFromDomain(domain);
+  const readableDomainTopic = domainWords.join(" ");
+
+  return {
+    primaryKeywords: normalizeKeywordList([
+      ...(name ? [name] : []),
+      domain,
+      ...(readableDomainTopic ? [readableDomainTopic] : []),
+    ]),
+    supportingKeywords: normalizeKeywordList([
+      `${name || readableDomainTopic || domain} website`,
+      `${name || readableDomainTopic || domain} services`,
+      `${name || readableDomainTopic || domain} contact`,
+      `${name || readableDomainTopic || domain} about`,
+    ]),
+    avoidKeywords: DEFAULT_SEO_KEYWORD_CONTEXT.avoidKeywords,
+  };
+}
+
 export function normalizeKeywordList(keywords: string[]): string[] {
   return [...new Set(keywords.map((keyword) => keyword.trim()).filter(Boolean))]
     .slice(0, 20);

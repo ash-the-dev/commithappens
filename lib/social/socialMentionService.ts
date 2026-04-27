@@ -1,5 +1,5 @@
 import { getPool } from '@/lib/db/pool'
-import { recordCompletedScan } from '@/lib/db/scans'
+import { completeScan, createRunningScan, failScan, recordCompletedScan } from '@/lib/db/scans'
 import { canUseFeature, getPlanLimit, getPlanEntitlements } from '@/lib/entitlements'
 import { isAdminEmail } from '@/lib/admin'
 import type { Mention } from './providers'
@@ -294,6 +294,19 @@ export async function runSocialMentionCheck(): Promise<SocialMentionCheckStats> 
     }
   }
 
+  const affectedSiteIds = Array.from(new Set(watchTerms.flatMap((term) => (term.site_id ? [term.site_id] : []))))
+  const scanBySiteId = new Map<string, string>()
+  for (const siteId of affectedSiteIds) {
+    const scan = await createRunningScan({
+      siteId,
+      scanType: 'reputation',
+      source: 'reputation-pulse',
+      rawResult: { watchTerms: watchTerms.filter((term) => term.site_id === siteId).map((term) => term.term) },
+    })
+    scanBySiteId.set(siteId, scan.id)
+  }
+
+  try {
   const providerMentions = await searchMentionsAcrossProviders(watchTerms.map((term) => term.term))
   const limitedProviderMentions = limitMentionsByTerm(providerMentions, watchTerms)
   const mentions: SocialMentionInsertCandidate[] =
@@ -411,7 +424,6 @@ export async function runSocialMentionCheck(): Promise<SocialMentionCheckStats> 
     }
   }
 
-  const affectedSiteIds = Array.from(new Set(watchTerms.flatMap((term) => (term.site_id ? [term.site_id] : []))))
   await Promise.all(
     affectedSiteIds.map(async (siteId) => {
       const summary = await pool.query<{ mentions: string; flagged_mentions: string }>(
@@ -423,13 +435,23 @@ export async function runSocialMentionCheck(): Promise<SocialMentionCheckStats> 
         [siteId],
       )
       const row = summary.rows[0]
+      const resultSummary = {
+        mentions: Number(row?.mentions ?? 0),
+        flagged_mentions: Number(row?.flagged_mentions ?? 0),
+      }
+      const scanId = scanBySiteId.get(siteId)
+      if (scanId) {
+        await completeScan({
+          scanId,
+          scanType: 'reputation',
+          resultSummary,
+        })
+        return
+      }
       await recordCompletedScan({
         siteId,
         scanType: 'reputation',
-        resultSummary: {
-          mentions: Number(row?.mentions ?? 0),
-          flagged_mentions: Number(row?.flagged_mentions ?? 0),
-        },
+        resultSummary,
         source: 'reputation-pulse',
       })
     }),
@@ -444,6 +466,18 @@ export async function runSocialMentionCheck(): Promise<SocialMentionCheckStats> 
     skipped_unauthorized: skippedUnauthorized,
     enriched,
     enrichment_failed: enrichmentFailed,
+  }
+  } catch (error) {
+    await Promise.all(
+      Array.from(scanBySiteId.values()).map((scanId) =>
+        failScan({
+          scanId,
+          errorMessage: 'Reputation Pulse check failed before results were saved.',
+          rawResult: { error: error instanceof Error ? error.message : String(error) },
+        }).catch(() => undefined),
+      ),
+    )
+    throw error
   }
 }
 

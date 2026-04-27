@@ -4,7 +4,7 @@ import type { SeoCrawlRunTrendPoint } from "@/lib/db/seo-crawl-intelligence";
 export type SiteTrendsPayload = {
   generatedAt: string;
   /**
-   * `live` = enough real points for a series; `partial` = mix; `demo` = sample curves until data exists.
+   * `live` = enough real points for a series; `partial` = one or more series are still empty.
    */
   source: "live" | "partial" | "demo";
   seoHealth: { at: string; label: string; score: number }[];
@@ -30,37 +30,8 @@ function historyAsc(h: WebsiteUptimeHistoryItem[]): WebsiteUptimeHistoryItem[] {
   return [...h].sort((a, b) => new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime());
 }
 
-const DEMO: SiteTrendsPayload = {
-  generatedAt: new Date().toISOString(),
-  source: "demo",
-  seoHealth: [72, 74, 71, 78, 80, 82, 85].map((score, i) => {
-    const t = new Date();
-    t.setDate(t.getDate() - (6 - i));
-    return {
-      at: t.toISOString(),
-      label: toShortLabel(t.toISOString()),
-      score,
-    };
-  }),
-  issues: [14, 12, 15, 11, 9, 8, 7].map((count, i) => {
-    const t = new Date();
-    t.setDate(t.getDate() - (6 - i));
-    return { at: t.toISOString(), label: toShortLabel(t.toISOString()), count };
-  }),
-  uptime: [98, 99, 97, 100, 100, 99, 100].map((pct, i) => {
-    const t = new Date();
-    t.setDate(t.getDate() - (6 - i));
-    return { at: t.toISOString(), label: toShortLabel(t.toISOString()), pct };
-  }),
-  responseMs: [280, 260, 310, 240, 220, 235, 228].map((ms, i) => {
-    const t = new Date();
-    t.setDate(t.getDate() - (6 - i));
-    return { at: t.toISOString(), label: toShortLabel(t.toISOString()), ms };
-  }),
-};
-
 /**
- * Assembles time-series for the report dashboard. Fills with demo when a series has no data yet.
+ * Assembles time-series for the report dashboard from stored data only.
  */
 export function buildSiteTrendsPayload(
   crawls: SeoCrawlRunTrendPoint[],
@@ -98,7 +69,7 @@ export function buildSiteTrendsPayload(
   const hasUptime = uptime.length > 0;
 
   if (!hasCrawl && !hasUptime) {
-    return { ...DEMO, generatedAt: now };
+    return { generatedAt: now, source: "partial", seoHealth: [], issues: [], uptime: [], responseMs: [] };
   }
 
   let source: SiteTrendsPayload["source"] = "live";
@@ -109,9 +80,9 @@ export function buildSiteTrendsPayload(
   return {
     generatedAt: now,
     source,
-    seoHealth: hasCrawl ? seoHealth : DEMO.seoHealth,
-    issues: hasCrawl ? issues : DEMO.issues,
-    uptime: hasUptime ? uptime : DEMO.uptime,
-    responseMs: hasUptime ? responseMs : DEMO.responseMs,
+    seoHealth,
+    issues,
+    uptime,
+    responseMs,
   };
 }

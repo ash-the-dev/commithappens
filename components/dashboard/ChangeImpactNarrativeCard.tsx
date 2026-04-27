@@ -17,9 +17,15 @@ export function ChangeImpactNarrativeCard({ narrative }: Props) {
       <DashboardSection
         kicker="Ship log"
         title="Did your deploy matter?"
-        subtitle="If you don’t log changes, the dashboard can’t roast you constructively. Tough love."
+        subtitle="This reads the latest logged change and explains what moved afterward."
       >
-        <p className="text-sm text-slate-700">No recent changes logged, so nothing to compare yet.</p>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-700">
+          <p className="font-semibold text-slate-950">Waiting for a logged change.</p>
+          <p className="mt-1">
+            Use the “Log something that changed” form above. Once there is a change record, this card becomes the plain
+            English readout of whether the site looked different afterward.
+          </p>
+        </div>
       </DashboardSection>
     );
   }

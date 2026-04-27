@@ -114,6 +114,13 @@ export function SeoReportRefreshButton({
 
           const status = result.status?.toLowerCase();
           if (status === "succeeded" || status === "completed") {
+            if ((result.pagesCrawled ?? 0) <= 0) {
+              finishCrawlWait(
+                "error",
+                "Crawl finished, but no page data was saved. The report import needs attention before this can populate.",
+              );
+              return;
+            }
             forceDashboardTopRefresh();
             finishCrawlWait(
               "success",
@@ -128,7 +135,7 @@ export function SeoReportRefreshButton({
           }
 
           if (attempt + 1 >= maxAttempts) {
-            finishCrawlWait("success", "Crawl is still running. Refresh stats in a bit and the report should catch up.");
+            finishCrawlWait("error", "Crawl is still running. Refresh stats in a bit; old crawls now time out instead of spinning forever.");
             return;
           }
 

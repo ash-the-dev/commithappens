@@ -1,5 +1,5 @@
 import { getPool } from "@/lib/db/pool";
-import { recordCompletedScan } from "@/lib/db/scans";
+import { completeScan, recordCompletedScan } from "@/lib/db/scans";
 
 export type UptimeProbeStatus = "up" | "down";
 
@@ -19,6 +19,7 @@ export type WebsiteUptimeMonitor = DueUptimeMonitor & {
 
 export type InsertUptimeCheckInput = {
   monitorId: string;
+  scanId?: string | null;
   userId?: string | null;
   siteId?: string | null;
   url: string;
@@ -235,14 +236,31 @@ export async function recordUptimeCheck(input: InsertUptimeCheckInput): Promise<
     client.release();
   }
   if (input.siteId) {
+    const resultSummary = {
+      status: input.isUp ? "online" as const : "offline" as const,
+      downtime_events: input.isUp ? 0 : 1,
+    };
+    if (input.scanId) {
+      await completeScan({
+        scanId: input.scanId,
+        scanType: "uptime",
+        completedAt: checkedAt,
+        resultSummary,
+        rawResult: {
+          monitorId: input.monitorId,
+          url: input.url,
+          statusCode: input.statusCode,
+          responseTimeMs: input.responseTimeMs,
+          errorMessage: input.errorMessage,
+        },
+      });
+      return;
+    }
     await recordCompletedScan({
       siteId: input.siteId,
       scanType: "uptime",
       completedAt: checkedAt,
-      resultSummary: {
-        status: input.isUp ? "online" : "offline",
-        downtime_events: input.isUp ? 0 : 1,
-      },
+      resultSummary,
       source: "uptime-check",
     });
   }

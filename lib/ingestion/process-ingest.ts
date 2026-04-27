@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { recordAnalyticsScanForWebsite } from "@/lib/db/analytics";
+import { createRunningScan, failScan } from "@/lib/db/scans";
 import {
   classifyTrafficChannel,
   fingerprintFields,
@@ -349,6 +350,8 @@ export async function persistIngestBatch(
   const pageRef = firstPv?.referrerUrl ?? null;
 
   const client = await pool.connect();
+  let analyticsScanId: string | null = null;
+  let analyticsWebsiteId: string | null = null;
   try {
     await client.query("BEGIN");
     const caps = await getColumnCaps(client);
@@ -371,6 +374,7 @@ export async function persistIngestBatch(
     }
 
     const websiteId = site.rows[0].id;
+    analyticsWebsiteId = websiteId;
     const primaryDomain = site.rows[0].primary_domain;
 
     const userAgent =
@@ -383,6 +387,14 @@ export async function persistIngestBatch(
       await client.query("ROLLBACK");
       return { ok: true };
     }
+
+    const analyticsScan = await createRunningScan({
+      siteId: websiteId,
+      scanType: "analytics",
+      source: "tracker-ingest",
+      rawResult: { eventCount: sorted.length },
+    });
+    analyticsScanId = analyticsScan.id;
 
     let sessionId: string | null = null;
     let sessionReady = false;
@@ -653,12 +665,19 @@ export async function persistIngestBatch(
     );
 
     await client.query("COMMIT");
-    await recordAnalyticsScanForWebsite(websiteId).catch((err) => {
+    await recordAnalyticsScanForWebsite(websiteId, analyticsScanId).catch((err) => {
       console.error("[ingest] analytics scan summary failed", { websiteId, err });
     });
     return { ok: true };
   } catch (err) {
     await client.query("ROLLBACK");
+    if (analyticsScanId && analyticsWebsiteId) {
+      await failScan({
+        scanId: analyticsScanId,
+        errorMessage: "Analytics ingest failed while saving tracker events.",
+        rawResult: { error: err instanceof Error ? err.message : String(err) },
+      }).catch(() => undefined);
+    }
     console.error("[ingest] transaction failed", err);
     return { ok: false, status: 500, error: "ingest_failed" };
   } finally {

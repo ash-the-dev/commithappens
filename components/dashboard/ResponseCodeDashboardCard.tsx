@@ -1,21 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { buildResponseCodeVoice } from "@/lib/seo-voice/responseCodeVoice";
 import type { ResponseCodeComparison } from "@/lib/seo/report/comparison";
 import { getSeoPlaybookResponse, type SeoPlaybookIssueKey } from "@/lib/seo/playbook/responses";
-import { runSeoResponseCodesImportFromDashboard } from "@/lib/seo/response-codes/seo-response-codes-run-client";
 import { SeoOnPageReportSection } from "@/components/dashboard/SeoOnPageReportSection";
 import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
 import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
@@ -77,13 +66,42 @@ type Props = {
 };
 
 const PIE_COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#94a3b8"];
-const RUNNING_LINES = [
-  "Let the chaos begin...",
-  "Crunching numbers and a few feelings...",
-  "Almost there. Probably.",
-  "Taking a bit longer. That's usually a good sign.",
-  "Building your report...",
-] as const;
+
+function percent(value: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.max(2, Math.round((value / total) * 100));
+}
+
+function DataBarList({
+  items,
+  total,
+  emptyLabel,
+}: {
+  items: Array<{ name: string; value: number; color: string }>;
+  total: number;
+  emptyLabel: string;
+}) {
+  const visibleItems = items.filter((item) => item.value > 0);
+  if (visibleItems.length === 0) {
+    return <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {visibleItems.map((item) => (
+        <div key={item.name} className="space-y-1">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="font-medium text-slate-700">{item.name}</span>
+            <span className="font-semibold tabular-nums text-slate-950">{item.value}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full" style={{ width: `${percent(item.value, total)}%`, background: item.color }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function trendPill(trend: "better" | "worse" | "stable" | "n/a"): string {
   if (trend === "better") return "bg-emerald-100 text-emerald-700 border-emerald-200";
@@ -131,8 +149,8 @@ function fallbackComparison(): ResponseCodeComparison {
   return {
     hasPrevious: false,
     overview: {
-      headline: "No comparison yet.",
-      summary: "Run another crawl to unlock trend intelligence.",
+      headline: "No crawl report data yet.",
+      summary: "Run SEO Crawl first. Comparison unlocks after a real report has page rows saved.",
       currentCrawlDate: null,
       previousCrawlDate: null,
     },
@@ -239,6 +257,40 @@ function MetricCard({ label, value, previous, delta, trend, help, infoKey }: Met
   );
 }
 
+type MiniChartCardProps = {
+  title: string;
+  explanation: string;
+  summary: string;
+  empty: string;
+  hasData: boolean;
+  children: ReactNode;
+};
+
+function MiniChartCard({ title, explanation, summary, empty, hasData, children }: MiniChartCardProps) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.55)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-950">{title}</h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-600">{explanation}</p>
+        </div>
+        <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+          {summary}
+        </span>
+      </div>
+      <div className="mt-3 h-36">
+        {hasData ? (
+          children
+        ) : (
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-xs leading-relaxed text-slate-500">
+            {empty}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function issueGuides(current: ResponseCodeReportLike) {
   const s = current.raw.summary;
   const byKey: Record<SeoPlaybookIssueKey, number> = {
@@ -287,12 +339,6 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
   const [envelope, setEnvelope] = useState<ResponseCodeEnvelope | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
-  const [isRunningCrawl, setIsRunningCrawl] = useState(false);
-  const [crawlStartedAt, setCrawlStartedAt] = useState<number | null>(null);
-  const [crawlElapsedSec, setCrawlElapsedSec] = useState(0);
-  const [runningLineIdx, setRunningLineIdx] = useState(0);
-  const [runStatusMessage, setRunStatusMessage] = useState<string | null>(null);
-  const [runErrorMessage, setRunErrorMessage] = useState<string | null>(null);
 
   const empty = useMemo(() => ({ current: fallbackReport(), previous: null, comparison: fallbackComparison() }), []);
 
@@ -310,29 +356,6 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
     }
   }, [empty, siteId]);
 
-  const runCrawl = useCallback(async () => {
-    setIsRunningCrawl(true);
-    setCrawlStartedAt(Date.now());
-    setCrawlElapsedSec(0);
-    setRunningLineIdx(0);
-    setRunStatusMessage(null);
-    setRunErrorMessage(null);
-    try {
-      const result = await runSeoResponseCodesImportFromDashboard(siteId);
-      if (!result.ok) {
-        setRunErrorMessage(result.error);
-        return;
-      }
-      setRunStatusMessage(result.message || "Crawl started. Results will update shortly.");
-    } catch (err) {
-      setRunErrorMessage(err instanceof Error ? err.message : "Failed to run crawl.");
-    } finally {
-      setIsRunningCrawl(false);
-      setCrawlStartedAt(null);
-      setCrawlElapsedSec(0);
-    }
-  }, [fetchReport, siteId]);
-
   useEffect(() => {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -343,22 +366,6 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
       cancelled = true;
     };
   }, [fetchReport]);
-
-  useEffect(() => {
-    if (!isRunningCrawl || !crawlStartedAt) return;
-    const timer = setInterval(() => {
-      setCrawlElapsedSec(Math.floor((Date.now() - crawlStartedAt) / 1000));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isRunningCrawl, crawlStartedAt]);
-
-  useEffect(() => {
-    if (!isRunningCrawl) return;
-    const rotation = setInterval(() => {
-      setRunningLineIdx((prev) => (prev + 1) % RUNNING_LINES.length);
-    }, 2000);
-    return () => clearInterval(rotation);
-  }, [isRunningCrawl]);
 
   if (isLoading) {
     return (
@@ -375,34 +382,28 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
   const comparison = data.comparison;
   const hasData = current.insights.overview.totalUrls > 0;
 
-  const donutData = [
-    { name: "200", value: current.raw.summary.healthy },
-    { name: "3xx", value: current.raw.summary.redirects },
-    { name: "4xx", value: current.raw.summary.clientErrors },
-    { name: "5xx", value: current.raw.summary.serverErrors },
-    { name: "Unknown", value: current.raw.summary.other },
-  ];
-
-  const trendData = [
-    { bucket: "200", previous: comparison.deltas.statusBuckets.previous.healthy2xx, current: current.raw.summary.healthy },
-    { bucket: "3xx", previous: comparison.deltas.statusBuckets.previous.redirects3xx, current: current.raw.summary.redirects },
-    { bucket: "4xx", previous: comparison.deltas.statusBuckets.previous.clientErrors4xx, current: current.raw.summary.clientErrors },
-    { bucket: "5xx", previous: comparison.deltas.statusBuckets.previous.serverErrors5xx, current: current.raw.summary.serverErrors },
-    { bucket: "Unknown", previous: comparison.deltas.statusBuckets.previous.unknown, current: current.raw.summary.other },
+  const statusBuckets = [
+    { name: "Healthy 2xx", value: current.raw.summary.healthy, color: PIE_COLORS[0] },
+    { name: "Redirects 3xx", value: current.raw.summary.redirects, color: PIE_COLORS[1] },
+    { name: "Client errors 4xx", value: current.raw.summary.clientErrors, color: PIE_COLORS[2] },
+    { name: "Server errors 5xx", value: current.raw.summary.serverErrors, color: PIE_COLORS[3] },
+    { name: "Unknown", value: current.raw.summary.other, color: PIE_COLORS[4] },
   ];
 
   const issueBreakdownData = [
-    { name: "4xx", count: current.raw.summary.clientErrors },
-    { name: "5xx", count: current.raw.summary.serverErrors },
-    { name: "3xx", count: current.raw.summary.redirects },
-    { name: "Unknown", count: current.raw.summary.other },
+    { name: "4xx client errors", value: current.raw.summary.clientErrors, color: "#06b6d4" },
+    { name: "5xx server errors", value: current.raw.summary.serverErrors, color: "#f59e0b" },
+    { name: "3xx redirects", value: current.raw.summary.redirects, color: "#8b5cf6" },
+    { name: "Unknown", value: current.raw.summary.other, color: "#94a3b8" },
   ];
+  const issueBreakdownTotal = issueBreakdownData.reduce((sum, item) => sum + item.value, 0);
 
   const changeSplit = [
-    { name: "Got worse", value: comparison.regressions.length },
-    { name: "Got better", value: comparison.improvements.length },
-    { name: "Stable", value: comparison.unchanged.length },
+    { name: "Got worse", value: comparison.regressions.length, color: "#f59e0b" },
+    { name: "Got better", value: comparison.improvements.length, color: "#3b82f6" },
+    { name: "Stable", value: comparison.unchanged.length, color: "#8b5cf6" },
   ];
+  const changeSplitTotal = changeSplit.reduce((sum, item) => sum + item.value, 0);
 
   const guides = issueGuides(current);
   const baselinePlaybook = [
@@ -411,61 +412,27 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
     getSeoPlaybookResponse("missing_titles"),
     getSeoPlaybookResponse("missing_meta"),
   ];
-  const runStage =
-    crawlElapsedSec < 20
-      ? "fetching"
-      : crawlElapsedSec < 55
-        ? "analyzing"
-        : "building report";
-  const fakeProgress = Math.min(92, 14 + crawlElapsedSec * 1.25);
 
   return (
     <section id="seo-console" className="space-y-5">
-      {isRunningCrawl ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-cyan-200/30 bg-linear-to-br from-slate-900/95 via-slate-900/92 to-indigo-950/90 p-5 shadow-2xl">
-            <p className="text-xs font-semibold uppercase tracking-widest text-cyan-200">Crawl in progress</p>
-            <h4 className="mt-2 text-lg font-semibold text-white">Starting the background crawl</h4>
-            <p className="mt-2 text-base font-semibold text-cyan-100">{RUNNING_LINES[runningLineIdx]}</p>
-            <p className="mt-2 text-sm text-slate-200">
-              The crawl runs in the background now. Refresh stats in a bit and the report will update.
-            </p>
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-300">
-              <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 font-semibold uppercase tracking-widest">
-                {runStage}
-              </span>
-              <span className="font-semibold text-cyan-100">Elapsed: {crawlElapsedSec}s</span>
-            </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-700">
-              <div
-                className="h-full animate-pulse bg-linear-to-r from-cyan-400 via-indigo-400 to-fuchsia-400 transition-all duration-700"
-                style={{ width: `${fakeProgress}%` }}
-              />
-            </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-slate-300">
-              <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-cyan-300" />
-              <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-indigo-300 [animation-delay:150ms]" />
-              <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-fuchsia-300 [animation-delay:300ms]" />
-              <span>The crawl worker is checking this site.</span>
-            </div>
-          </div>
-        </div>
-      ) : null}
       <div className="space-y-6">
         <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.45)] sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">SEO crawl details</p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">{comparison.overview.headline}</h2>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
+                {hasData ? comparison.overview.headline : "No crawl report data yet."}
+              </h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-                {hasData ? comparison.overview.summary : "No crawl data yet. Run SEO Crawl to populate this report."}
+                {hasData
+                  ? comparison.overview.summary
+                  : "Run SEO Crawl from the controls above. This section stays empty until the crawler saves real page data."}
               </p>
               {!hasData ? (
                 <p className="mt-2 text-xs text-amber-700">
-                  If a crawl just finished but this is still empty, refresh stats once the report has saved.
+                  If you already ran a crawl and this still says 0 pages, the crawl started but the import did not save usable page rows.
                 </p>
-              ) : null}
-              {comparison.hasPrevious ? (
+              ) : comparison.hasPrevious ? (
                 <p className="mt-2 text-xs text-slate-500">
                   Comparing latest crawl against the immediately previous crawl for this site.
                 </p>
@@ -475,19 +442,7 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
                 </p>
               )}
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <button
-                type="button"
-                onClick={() => void runCrawl()}
-                disabled={isRunningCrawl}
-                className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
-              >
-                {isRunningCrawl ? "Running..." : "Run crawl"}
-              </button>
-            </div>
           </div>
-          {runStatusMessage ? <p className="mt-4 text-xs text-blue-700">{runStatusMessage}</p> : null}
-          {runErrorMessage ? <p className="mt-4 text-xs text-amber-700">{runErrorMessage}</p> : null}
           {hasFetchError ? <p className="mt-4 text-xs text-amber-700">Could not load latest report. Showing fallback.</p> : null}
         </header>
 
@@ -547,80 +502,36 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
           }>}
         />
 
-        <section className="grid gap-5 xl:grid-cols-2">
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)]">
-            <h3 className="text-base font-semibold text-slate-900">Status code distribution (current)</h3>
-            <p className="mt-1 text-xs text-slate-600">Where pages land right now: healthy, redirecting, or breaking.</p>
-            <div className="mt-4 h-60">
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
-                <PieChart>
-                  <Pie data={donutData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={90} paddingAngle={2}>
-                    {donutData.map((entry, index) => (
-                      <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </article>
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <MiniChartCard
+            title="Status Codes"
+            explanation="Current crawl buckets: healthy, redirecting, or breaking."
+            summary={`${current.raw.summary.totalUrls} URLs`}
+            empty="Waiting for another crawl to compare buckets."
+            hasData={hasData}
+          >
+            <DataBarList items={statusBuckets} total={current.raw.summary.totalUrls} emptyLabel="No status buckets saved yet." />
+          </MiniChartCard>
 
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)]">
-            <h3 className="text-base font-semibold text-slate-900">Status code trend (previous vs current)</h3>
-            <p className="mt-1 text-xs text-slate-600">Exact bucket movement between the last two crawls.</p>
-            <div className="mt-4 h-60">
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
-                <BarChart data={trendData}>
-                  <XAxis dataKey="bucket" stroke="#64748b" fontSize={12} />
-                  <YAxis stroke="#64748b" fontSize={12} />
-                  <Tooltip />
-                  <Bar dataKey="previous" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="current" fill="#22d3ee" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </article>
-        </section>
+          <MiniChartCard
+            title="Issue Types"
+            explanation="Small issue-family view so the loudest bucket is obvious."
+            summary={`${issueBreakdownTotal} issues`}
+            empty="No major issue families found yet."
+            hasData={issueBreakdownTotal > 0}
+          >
+            <DataBarList items={issueBreakdownData} total={issueBreakdownTotal} emptyLabel="No issue-family rows saved yet." />
+          </MiniChartCard>
 
-        <section className="grid gap-5 xl:grid-cols-2">
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)]">
-            <h3 className="text-base font-semibold text-slate-900">Issue breakdown</h3>
-            <p className="mt-1 text-xs text-slate-600">Count by issue family so you can prioritize effort fast.</p>
-            <div className="mt-4 h-64">
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
-                <BarChart data={issueBreakdownData}>
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
-                  <YAxis stroke="#64748b" fontSize={12} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)]">
-            <h3 className="text-base font-semibold text-slate-900">Regression vs improvement</h3>
-            <p className="mt-1 text-xs text-slate-600">What changed quality-wise since your previous crawl.</p>
-            <div className="mt-4 h-64">
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
-                <BarChart data={changeSplit}>
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                  <YAxis stroke="#64748b" fontSize={12} />
-                  <Tooltip />
-                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                    {changeSplit.map((entry) => (
-                      <Cell
-                        key={entry.name}
-                        fill={
-                          entry.name === "Got worse" ? "#f59e0b" : entry.name === "Got better" ? "#3b82f6" : "#8b5cf6"
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </article>
+          <MiniChartCard
+            title="Crawl Movement"
+            explanation="What got worse, better, or stayed weird since the prior crawl."
+            summary={comparison.hasPrevious ? `${changeSplitTotal} signals` : "No prior crawl"}
+            empty="Run one more crawl and we’ll show what got better, worse, or stayed weird."
+            hasData={comparison.hasPrevious && changeSplitTotal > 0}
+          >
+            <DataBarList items={changeSplit} total={changeSplitTotal} emptyLabel="No crawl movement rows saved yet." />
+          </MiniChartCard>
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)] sm:p-6">

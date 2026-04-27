@@ -1,21 +1,6 @@
 "use client";
 
 import { Children, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import type { SiteLiveActivityItem, SiteTopPage } from "@/lib/db/analytics";
 import type { SiteTrendsPayload } from "@/lib/dashboard/site-trends";
 
@@ -71,6 +56,11 @@ const statusToneClass: Record<CommandCenterBriefingCard["statusTone"], string> =
 
 const donutColors = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#64748b"];
 
+function barPercent(value: number, max: number): number {
+  if (max <= 0) return 0;
+  return Math.max(3, Math.round((value / max) * 100));
+}
+
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const sec = Math.max(0, Math.floor(diffMs / 1000));
@@ -82,46 +72,82 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
+function pageLabel(path: string | null | undefined): string {
+  if (!path || path === "/") return "Homepage";
+  return path;
+}
+
+function compactPageLabel(path: string | null | undefined): string {
+  const label = pageLabel(path);
+  return label.length > 22 ? `${label.slice(0, 10)}...${label.slice(-8)}` : label;
+}
+
 function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
   const chartData = trends.seoHealth.map((point, index) => ({
     label: point.label,
     score: point.score,
     issues: trends.issues[index]?.count ?? 0,
   }));
+  const hasData = chartData.length > 0;
+  const maxIssues = Math.max(1, ...chartData.map((point) => point.issues));
+  const latest = chartData.at(-1);
 
   return (
-    <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)] lg:col-span-2">
+    <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">SEO command chart</p>
-          <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">Health and issues over time</h2>
+          <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Health and issues</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Compact crawl trend, focused on whether health is improving and issue volume is cooling off.
+            Stored crawl trend. Empty until SEO Crawl has real history.
           </p>
         </div>
         <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-          {trends.source === "demo" ? "Sample data" : trends.source === "partial" ? "Partial data" : "Stored data"}
+          {trends.source === "partial" ? "Waiting for data" : "Stored data"}
         </span>
       </div>
-      <div className="ui-chart-shell mt-5 h-64 min-h-64 p-2">
-        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
-          <LineChart data={chartData}>
-            <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
-            <YAxis yAxisId="score" domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
-            <YAxis yAxisId="issues" orientation="right" tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
-            <Tooltip
-              contentStyle={{
-                border: "1px solid rgba(15,23,42,0.12)",
-                borderRadius: 12,
-                background: "rgba(255,255,255,0.98)",
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line yAxisId="score" type="monotone" dataKey="score" name="SEO health" stroke="var(--brand)" strokeWidth={1.9} dot={false} isAnimationActive animationDuration={700} />
-            <Line yAxisId="issues" type="monotone" dataKey="issues" name="Issues" stroke="var(--wave-cyan)" strokeWidth={1.8} dot={false} isAnimationActive animationDuration={700} />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="ui-chart-shell mt-4 min-h-40 p-3">
+        {hasData ? (
+          <div className="space-y-4">
+            <div className="flex items-end justify-between gap-2">
+              {chartData.map((point, index) => (
+                <div key={`${point.label}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+                  <div className="flex h-24 w-full max-w-8 items-end justify-center rounded-full bg-slate-100 px-1">
+                    <span
+                      className="w-full rounded-full bg-linear-to-t from-blue-500 to-cyan-300"
+                      style={{ height: `${Math.max(5, point.score)}%` }}
+                      title={`${point.label}: ${point.score} health, ${point.issues} issues`}
+                    />
+                  </div>
+                  <span className="max-w-14 truncate text-[10px] font-medium text-slate-500">{point.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+              <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+                Latest health: <span className="font-semibold text-slate-950">{latest?.score ?? 0}/100</span>
+              </p>
+              <p className="rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
+                Latest issues: <span className="font-semibold text-slate-950">{latest?.issues ?? 0}</span>
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              {chartData.slice(-3).map((point, index) => (
+                <div key={`${point.label}-${index}-issues`} className="flex items-center gap-2 text-[11px] text-slate-500">
+                  <span className="w-14 truncate">{point.label}</span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-violet-400" style={{ width: `${barPercent(point.issues, maxIssues)}%` }} />
+                  </div>
+                  <span className="w-8 text-right tabular-nums">{point.issues}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-slate-500">
+            Run SEO Crawl twice and we’ll show whether things are improving, slipping, or staying weird.
+          </div>
+        )}
       </div>
     </article>
   );
@@ -156,41 +182,37 @@ function TopPagesCard({ topPages }: { topPages: SiteTopPage[] }) {
   const data = useMemo(
     () =>
       topPages.slice(0, 6).map((page, index) => ({
-        label: page.path.length > 22 ? `${page.path.slice(0, 10)}...${page.path.slice(-8)}` : page.path || "/",
-        path: page.path || "/",
+        label: compactPageLabel(page.path),
+        path: pageLabel(page.path),
         views: page.views,
         rank: `#${index + 1}`,
       })),
     [topPages],
   );
+  const maxViews = Math.max(1, ...data.map((page) => page.views));
 
   return (
     <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Top pages</p>
       <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Where attention is landing</h2>
-      <div className="ui-chart-shell mt-4 h-64 min-h-64 p-2">
+      <p className="mt-1 text-sm text-slate-600">Real pageviews from the tracker. “Homepage” means the domain root.</p>
+      <div className="ui-chart-shell mt-4 min-h-56 p-3">
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
-            <BarChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 54 }}>
-              <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
-              <XAxis dataKey="label" angle={-28} textAnchor="end" height={58} tick={{ fill: "#64748b", fontSize: 10 }} tickLine={false} />
-              <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
-              <Tooltip
-                cursor={{ fill: "rgba(59,130,246,0.08)" }}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.[0]) return null;
-                  const row = payload[0].payload as (typeof data)[0];
-                  return (
-                    <div className="max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-                      <p className="font-mono font-semibold text-slate-900">{row.path}</p>
-                      <p className="mt-1 text-slate-600">{row.views.toLocaleString("en-US")} pageviews</p>
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="views" fill="var(--brand)" fillOpacity={0.72} radius={[8, 8, 0, 0]} maxBarSize={34} isAnimationActive animationDuration={650} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="space-y-3">
+            {data.map((page) => (
+              <div key={`${page.rank}-${page.path}`} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate font-semibold text-slate-700">
+                    {page.rank} {page.path}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-slate-500">{page.views.toLocaleString("en-US")}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-brand/75" style={{ width: `${barPercent(page.views, maxViews)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-center text-sm text-slate-500">
             No pageviews yet. Either it’s quiet, or the tracker’s on vacation.
@@ -203,52 +225,101 @@ function TopPagesCard({ topPages }: { topPages: SiteTopPage[] }) {
 
 function IssueBreakdownCard({ issues }: { issues: IssueBreakdownItem[] }) {
   const total = issues.reduce((sum, item) => sum + item.value, 0);
-  const data = total > 0 ? issues : [{ name: "No issues", value: 1 }];
+  const data = issues.filter((item) => item.value > 0);
+  const maxIssueValue = Math.max(1, ...data.map((item) => item.value));
 
   return (
     <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">Issue mix</p>
       <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Crawl issue breakdown</h2>
-      <div className="mt-4 h-56">
-        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
-          <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" innerRadius={54} outerRadius={86} paddingAngle={2}>
-              {data.map((entry, index) => (
-                <Cell key={entry.name} fill={total > 0 ? donutColors[index % donutColors.length] : "#cbd5e1"} />
+      <p className="mt-1 text-sm text-slate-600">Current issue families from the latest valid crawl.</p>
+      <div className="mt-4 min-h-40">
+        {total > 0 ? (
+          <div className="space-y-3">
+            <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+              {data.map((item, index) => (
+                <span
+                  key={item.name}
+                  style={{
+                    width: `${Math.max(4, Math.round((item.value / total) * 100))}%`,
+                    background: donutColors[index % donutColors.length],
+                  }}
+                  title={`${item.name}: ${item.value}`}
+                />
               ))}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
+            </div>
+            <div className="space-y-2">
+              {data.map((item, index) => (
+                <div key={`${item.name}-bar`} className="space-y-1">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="flex items-center gap-2 font-medium text-slate-700">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: donutColors[index % donutColors.length] }} />
+                      {item.name}
+                    </span>
+                    <span className="font-semibold tabular-nums text-slate-950">{item.value}</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${barPercent(item.value, maxIssueValue)}%`, background: donutColors[index % donutColors.length] }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-sm text-slate-500">
+            No major issue families found yet.
+          </div>
+        )}
       </div>
       <div className="mt-2 grid gap-2 text-xs text-slate-600">
-        {issues.map((item, index) => (
-          <div key={item.name} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: donutColors[index % donutColors.length] }} />
-              {item.name}
-            </span>
-            <span className="font-semibold text-slate-900">{item.value}</span>
-          </div>
-        ))}
+        {total > 0 ? (
+          data.map((item, index) => (
+            <div key={item.name} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: donutColors[index % donutColors.length] }} />
+                {item.name}
+              </span>
+              <span className="font-semibold text-slate-900">{item.value}</span>
+            </div>
+          ))
+        ) : (
+          <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+            Nothing worth charting yet.
+          </p>
+        )}
       </div>
     </article>
   );
 }
 
 function CompactActivityCard({ items }: { items: SiteLiveActivityItem[] }) {
+  const dedupedItems = useMemo(() => {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const minute = item.occurredAt.slice(0, 16);
+      const key = `${item.type}:${item.label}:${item.path ?? ""}:${minute}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [items]);
+
   return (
     <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-600">Recent activity</p>
       <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Latest tracked events</h2>
+      <p className="mt-1 text-sm text-slate-600">Deduped recent tracker events. These are status rows, not mystery buttons.</p>
       <div className="mt-4 space-y-2">
-        {items.length > 0 ? (
-          items.slice(0, 5).map((item) => (
+        {dedupedItems.length > 0 ? (
+          dedupedItems.slice(0, 5).map((item) => (
             <div key={`${item.type}-${item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-950">{item.label}</p>
-                  <p className="mt-1 truncate font-mono text-xs text-slate-500">{item.path ?? item.type}</p>
+                  <p className="mt-1 truncate font-mono text-xs text-slate-500">{pageLabel(item.path) || item.type}</p>
                 </div>
                 <span className="shrink-0 text-xs font-semibold text-slate-500">{timeAgo(item.occurredAt)}</span>
               </div>
@@ -290,6 +361,25 @@ export function SiteCommandCenterDashboard({
     [tabIds],
   );
 
+  const handleBriefingCardClick = useCallback(
+    (target: string | undefined) => {
+      if (!target) return;
+      if (tabIds.has(target)) {
+        activateTab(target, true);
+        window.setTimeout(() => {
+          document.getElementById("details")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 0);
+        return;
+      }
+      const el = document.getElementById(target);
+      if (el) {
+        window.history.replaceState(null, "", `#${target}`);
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    [activateTab, tabIds],
+  );
+
   useEffect(() => {
     const activateFromHash = () => {
       const tabId = window.location.hash.replace(/^#/, "");
@@ -307,7 +397,7 @@ export function SiteCommandCenterDashboard({
           <button
             key={card.id}
             type="button"
-            onClick={() => card.targetTab && activateTab(card.targetTab, true)}
+            onClick={() => handleBriefingCardClick(card.targetTab)}
             className="group flex min-h-72 flex-col rounded-3xl border border-white/12 bg-slate-950/72 p-4 text-left shadow-[0_22px_75px_-40px_rgba(0,0,0,0.9)] backdrop-blur transition hover:-translate-y-0.5 hover:border-cyan-200/45 hover:bg-slate-950/82 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 sm:p-5"
           >
             <div className={`h-1.5 rounded-full bg-linear-to-r ${cardAccent[card.accent]}`} aria-hidden />

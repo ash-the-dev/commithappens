@@ -7,7 +7,9 @@ import {
   attachProviderRunToSeoCrawlRun,
   createPendingSeoCrawlRun,
   markSeoCrawlRunFailedById,
+  seoScanSourceForCrawlRun,
 } from "@/lib/db/seo-apify-pipeline";
+import { createRunningScan } from "@/lib/db/scans";
 import { getPlanLimit, requireFeature } from "@/lib/entitlements";
 import { normalizePublicCrawlUrl, urlsBelongToSameSite } from "@/lib/seo/crawl-request-security";
 
@@ -99,7 +101,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const apiToken = process.env.APIFY_API_TOKEN?.trim();
+  const apiToken = process.env.APIFY_API_TOKEN?.trim() || process.env.APIFY_TOKEN?.trim();
   const actorId = process.env.APIFY_ACTOR_ID?.trim();
   if (!apiToken || !actorId) {
     return json(
@@ -148,6 +150,28 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const monthlyCrawlLimit = getPlanLimit(billing.accountKind, "seoCrawlsPerMonth");
+  const crawlCooldownHours = getPlanLimit(billing.accountKind, "seoCrawlCooldownHours");
+  if (crawlCooldownHours != null && crawlCooldownHours > 0) {
+    const since = new Date(Date.now() - crawlCooldownHours * 60 * 60 * 1000);
+    const recentRuns = await countSeoCrawlRunsForSiteSince(site.id, since);
+    if (recentRuns > 0) {
+      const cadence =
+        crawlCooldownHours >= 24 * 30
+          ? "once per month"
+          : crawlCooldownHours >= 24 * 7
+            ? "once per week"
+            : "once per 24 hours";
+      return json(
+        {
+          ok: false,
+          code: "SEO_CRAWL_COOLDOWN_ACTIVE",
+          message: `Your plan allows SEO crawls ${cadence} per site. Refresh stats to view the latest saved report.`,
+        },
+        429,
+      );
+    }
+  }
+
   if (monthlyCrawlLimit != null) {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentRuns = await countSeoCrawlRunsForSiteSince(site.id, since);
@@ -170,6 +194,12 @@ export async function POST(request: Request): Promise<Response> {
     siteId: site.id,
     domain: crawlUrl.toString(),
     actorId,
+  });
+  await createRunningScan({
+    siteId: site.id,
+    scanType: "seo",
+    source: seoScanSourceForCrawlRun(pending.id),
+    rawResult: { crawlRunId: pending.id, domain: crawlUrl.toString() },
   });
 
   try {

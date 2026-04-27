@@ -3,13 +3,14 @@ import { authOptions } from "@/lib/auth/options";
 import { getBillingAccess } from "@/lib/billing/access";
 import { getPool } from "@/lib/db/pool";
 import { getWebsiteForUser } from "@/lib/db/websites";
+import { getLatestSeoCrawlRun } from "@/lib/db/seo-crawl-intelligence";
 import { requireFeature } from "@/lib/entitlements";
 import {
   generateAiSeoRecommendations,
   type GenerateAiSeoRecommendationsInput,
   type SeoRecommendationPageInput,
 } from "@/lib/seo/aiRecommendations";
-import { DEFAULT_SEO_KEYWORD_CONTEXT } from "@/lib/seo/keyword-context";
+import { buildSiteKeywordContext } from "@/lib/seo/keyword-context";
 
 export const runtime = "nodejs";
 
@@ -122,26 +123,25 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const pool = getPool();
-  const latestRun = await pool.query<{ id: string; created_at: string }>(
-    `SELECT id, created_at::text
-     FROM seo_crawl_runs
-     WHERE site_id = $1::text
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [siteId],
-  );
-  const run = latestRun.rows[0];
+  const keywordContext = buildSiteKeywordContext({
+    name: site.name,
+    primaryDomain: site.primary_domain,
+  });
+  const run = await getLatestSeoCrawlRun(siteId);
+  const emptyResult = {
+    source: "fallback" as const,
+    model: null,
+    generatedAt: new Date().toISOString(),
+    recommendations: [],
+    summary: "No crawl report data is available yet. Run SEO Crawl first, then this will turn into page-specific fixes.",
+    error: "no_crawl_data",
+  };
   if (!run) {
-    const result = await generateAiSeoRecommendations({
-      siteUrl: site.primary_domain,
-      pages: [],
-      keywordContext: DEFAULT_SEO_KEYWORD_CONTEXT,
-    });
     return json({
       ok: true,
       runCreatedAt: null,
-      keywordContext: DEFAULT_SEO_KEYWORD_CONTEXT,
-      ...result,
+      keywordContext,
+      ...emptyResult,
     });
   }
 
@@ -170,10 +170,10 @@ export async function GET(request: Request): Promise<Response> {
     pool.query<{ report_json: unknown }>(
       `SELECT report_json
        FROM response_code_reports
-       WHERE site_id = $1::text
+       WHERE crawl_run_id = $1::uuid
        ORDER BY created_at DESC
        LIMIT 1`,
-      [siteId],
+      [run.id],
     ),
   ]);
 
@@ -193,6 +193,14 @@ export async function GET(request: Request): Promise<Response> {
       internalLinksCount: linkCount(page.links),
       brokenLinkTargets: brokenLinkTargets(page.links),
     }));
+  if (pages.length === 0) {
+    return json({
+      ok: true,
+      runCreatedAt: run.created_at,
+      keywordContext,
+      ...emptyResult,
+    });
+  }
 
   const payload: GenerateAiSeoRecommendationsInput = {
     siteUrl: site.primary_domain,
@@ -215,14 +223,14 @@ export async function GET(request: Request): Promise<Response> {
       lowInternalLinks: pages.filter((p) => (p.internalLinksCount ?? 99) < 2).length,
       brokenLinkTargets: pages.flatMap((p) => p.brokenLinkTargets).slice(0, 20),
     },
-    keywordContext: DEFAULT_SEO_KEYWORD_CONTEXT,
+    keywordContext,
   };
 
   const result = await generateAiSeoRecommendations(payload);
   return json({
     ok: true,
     runCreatedAt: run.created_at,
-    keywordContext: DEFAULT_SEO_KEYWORD_CONTEXT,
+    keywordContext,
     ...result,
   });
 }

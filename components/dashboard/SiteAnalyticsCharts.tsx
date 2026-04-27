@@ -1,20 +1,6 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  ReferenceLine,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import type { SiteAnalytics, SiteAnalyticsPoint, SiteVitalAverage } from "@/lib/db/analytics";
 import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
 import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
@@ -65,6 +51,11 @@ function median(values: number[]): number {
 function pctChange(prev: number, next: number): number {
   if (prev <= 0) return next > 0 ? 100 : 0;
   return ((next - prev) / prev) * 100;
+}
+
+function barPercent(value: number, max: number): number {
+  if (max <= 0) return 0;
+  return Math.max(3, Math.round((value / max) * 100));
 }
 
 function classifyMove(pct: number): SeriesInsight["kind"] {
@@ -291,6 +282,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
   const lastSessions = sessionsSeries[sessionsSeries.length - 1] ?? 0;
   const vsBaseline =
     baselineSessions > 0 ? ((lastSessions - baselineSessions) / baselineSessions) * 100 : null;
+  const maxTimelineValue = Math.max(1, ...timeline.flatMap((point) => [point.sessions, point.pageviews, point.events]));
 
   const top = analytics.topPages[0] ?? null;
   const totalPageviewsInRange = timeline.reduce((sum, d) => sum + d.pageviews, 0);
@@ -311,6 +303,7 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
         };
       });
   }, [analytics.topPages]);
+  const maxTopPageViews = Math.max(1, ...topPagesForChart.map((page) => page.views));
 
   const uptime = uptimePill(analytics);
 
@@ -493,90 +486,32 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
           ) : null}
         </div>
 
-        <div className="ui-chart-shell mt-4 h-64 min-h-64 w-full p-2">
-          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
-            <LineChart data={timeline}>
-              <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fill: "rgba(15,23,42,0.62)", fontSize: 12 }}
-                tickLine={false}
-                axisLine={{ stroke: "rgba(15,23,42,0.18)" }}
-              />
-              <YAxis
-                tick={{ fill: "rgba(15,23,42,0.62)", fontSize: 12 }}
-                tickLine={false}
-                axisLine={{ stroke: "rgba(15,23,42,0.18)" }}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: 12,
-                  border: "1px solid rgba(15,23,42,0.12)",
-                  background: "rgba(255,255,255,0.96)",
-                }}
-                labelStyle={{ color: "rgba(15,23,42,0.75)", fontWeight: 700 }}
-              />
-              <Legend
-                wrapperStyle={{ color: "rgba(15,23,42,0.72)", fontSize: 12, paddingTop: 8 }}
-                formatter={(value) => <span className="text-slate-700">{String(value)}</span>}
-              />
-              {latestDeltaInsight ? (
-                <ReferenceLine
-                  x={latestDeltaInsight.dayLabel}
-                  stroke={
-                    latestDeltaInsight.kind === "spike"
-                      ? "rgba(244,63,94,0.55)"
-                      : latestDeltaInsight.kind === "drop"
-                        ? "rgba(59,130,246,0.55)"
-                        : "rgba(100,116,139,0.5)"
-                  }
-                  strokeDasharray="4 4"
-                  label={{
-                    value:
-                      latestDeltaInsight.kind === "spike"
-                        ? "Latest spike"
-                        : latestDeltaInsight.kind === "drop"
-                          ? "Latest drop"
-                          : "Latest steady",
-                    position: "top",
-                    fill: "rgba(15,23,42,0.65)",
-                    fontSize: 11,
-                    fontWeight: 700,
-                  }}
-                />
-              ) : null}
-              <Line
-                type="monotone"
-                dataKey="sessions"
-                name="Sessions (visits that started)"
-                stroke="var(--brand)"
-                strokeWidth={1.9}
-                dot={false}
-                isAnimationActive
-                animationDuration={700}
-              />
-              <Line
-                type="monotone"
-                dataKey="pageviews"
-                name="Pageviews (pages loaded)"
-                stroke="var(--wave-blue)"
-                strokeWidth={1.8}
-                dot={false}
-                isAnimationActive
-                animationDuration={700}
-              />
-              <Line
-                type="monotone"
-                dataKey="events"
-                name="Events (things you track on purpose)"
-                stroke="var(--wave-cyan)"
-                strokeWidth={1.8}
-                dot={false}
-                isAnimationActive
-                animationDuration={700}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="ui-chart-shell mt-4 min-h-64 w-full p-4">
+          <div className="space-y-3">
+            {timeline.map((point, index) => (
+              <div key={`${point.day}-${index}`} className="grid gap-2 text-xs text-slate-600 sm:grid-cols-[5rem_1fr]">
+                <div className="font-semibold text-slate-700">{point.label}</div>
+                <div className="space-y-1.5">
+                  {([
+                    { key: "sessions" as const, label: "Sessions", color: "var(--brand)" },
+                    { key: "pageviews" as const, label: "Pageviews", color: "var(--wave-blue)" },
+                    { key: "events" as const, label: "Events", color: "var(--wave-cyan)" },
+                  ]).map((metric) => (
+                    <div key={metric.key} className="grid grid-cols-[5.5rem_1fr_3rem] items-center gap-2">
+                      <span>{metric.label}</span>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${barPercent(point[metric.key], maxTimelineValue)}%`, background: metric.color }}
+                        />
+                      </div>
+                      <span className="text-right tabular-nums text-slate-700">{num(point[metric.key])}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/70 p-4">
@@ -646,71 +581,29 @@ export function SiteAnalyticsCharts({ analytics }: Props) {
             </p>
           </div>
 
-          <div className="ui-chart-shell mt-4 h-72 min-h-72 w-full p-2 sm:h-80 sm:min-h-80">
-            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={260}>
-              <BarChart
-                data={topPagesForChart}
-                margin={{ top: 8, right: 8, left: 4, bottom: 88 }}
-                barCategoryGap="18%"
-              >
-                <CartesianGrid stroke="rgba(15,23,42,0.055)" vertical={false} strokeDasharray="2 6" />
-                <XAxis
-                  dataKey="short"
-                  type="category"
-                  tick={{ fill: "rgba(15,23,42,0.68)", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={{ stroke: "rgba(15,23,42,0.1)" }}
-                  interval={0}
-                  height={64}
-                  angle={-32}
-                  textAnchor="end"
-                />
-                <YAxis
-                  tick={{ fill: "rgba(15,23,42,0.55)", fontSize: 11 }}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(56, 189, 248, 0.07)" }}
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.[0]) return null;
-                    const row = payload[0].payload as (typeof topPagesForChart)[0];
-                    return (
-                      <div className="max-w-sm rounded-xl border border-slate-200/80 bg-white/98 px-3 py-2 text-xs shadow-lg backdrop-blur">
-                        <p className="font-mono text-[11px] font-semibold leading-snug text-slate-800">{row.path}</p>
-                        <p className="mt-1 text-slate-600">
-                          <span className="font-semibold text-slate-900">{num(row.views)}</span> pageviews
-                        </p>
-                      </div>
-                    );
-                  }}
-                />
-                <Bar
-                  dataKey="views"
-                  name="Pageviews"
-                  fill="url(#barGrad)"
-                  fillOpacity={0.74}
-                  radius={[8, 8, 0, 0]}
-                  maxBarSize={34}
-                  isAnimationActive
-                  animationDuration={650}
-                >
-                  <LabelList
-                    dataKey="views"
-                    position="top"
-                    style={{ fontSize: 10, fill: "rgba(15,23,42,0.65)", fontWeight: 600 }}
-                    formatter={(v) => num(Number(v))}
-                  />
-                </Bar>
-                <defs>
-                  <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="color-mix(in srgb, var(--brand) 86%, white)" />
-                    <stop offset="100%" stopColor="color-mix(in srgb, var(--brand) 35%, #e2e8f0)" />
-                  </linearGradient>
-                </defs>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="ui-chart-shell mt-4 min-h-72 w-full p-4 sm:min-h-80">
+            {topPagesForChart.length > 0 ? (
+              <div className="space-y-3">
+                {topPagesForChart.map((page) => (
+                  <div key={page.path} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className="min-w-0 truncate font-mono font-semibold text-slate-700">{page.path}</span>
+                      <span className="shrink-0 tabular-nums text-slate-600">{num(page.views)}</span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-brand/75"
+                        style={{ width: `${barPercent(page.views, maxTopPageViews)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 text-center text-sm text-slate-500">
+                No top-page rows yet.
+              </div>
+            )}
           </div>
         </div>
 

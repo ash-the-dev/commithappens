@@ -58,6 +58,7 @@ export type AiSeoRecommendationsResult = {
 
 const MAX_RECOMMENDATIONS = 10;
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const MODEL_TIMEOUT_MS = 6_000;
 const cache = new Map<string, { expiresAt: number; value: AiSeoRecommendationsResult }>();
 
 const SEO_RECOMMENDATIONS_JSON_SCHEMA = {
@@ -352,6 +353,7 @@ function normalizeAiOutput(value: unknown): { recommendations: SeoRecommendation
 async function callRecommendationModel(
   model: string,
   input: GenerateAiSeoRecommendationsInput,
+  signal?: AbortSignal,
 ): Promise<{ recommendations: SeoRecommendation[]; summary: string }> {
   const client = getOpenAiClient();
   const keywordContext = normalizeKeywordContext(input.keywordContext);
@@ -362,36 +364,57 @@ async function callRecommendationModel(
           : ""
       }`
     : "No keyword context was provided, so infer page intent only from the crawl data.";
-  const response = await client.responses.create({
-    model,
-    instructions:
-      `You are an expert SEO consultant for small business owners. Generate specific, page-level SEO fix recommendations from only the provided crawl data. Avoid jargon where possible. Give exact wording users can copy. Do not invent facts, products, locations, or broken links that are not supported by the input. ${keywordInstruction} If data is thin, say so through conservative recommendations. Prioritize by impact and ease. Return valid JSON only.`,
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Generate page-specific SEO recommendations from this compact crawl payload:\n${JSON.stringify(input)}`,
-          },
-        ],
-      },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "seo_recommendations",
-        schema: SEO_RECOMMENDATIONS_JSON_SCHEMA,
-        strict: true,
+  const response = await client.responses.create(
+    {
+      model,
+      instructions:
+        `You are an expert SEO consultant for small business owners. Generate specific, page-level SEO fix recommendations from only the provided crawl data. Avoid jargon where possible. Explain fixes so a non-technical person knows exactly where to click, what field to edit, what text to paste, and how to confirm it worked. Give exact wording users can copy. Do not invent facts, products, locations, or broken links that are not supported by the input. ${keywordInstruction} If data is thin, say so through conservative recommendations. Prioritize by impact and ease. Return valid JSON only.`,
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Generate page-specific SEO recommendations from this compact crawl payload:\n${JSON.stringify(input)}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "seo_recommendations",
+          schema: SEO_RECOMMENDATIONS_JSON_SCHEMA,
+          strict: true,
+        },
       },
     },
-  });
+    { signal },
+  );
 
   const raw = response.output_text;
   if (!raw?.trim()) {
     throw new Error("empty_ai_output");
   }
   return normalizeAiOutput(JSON.parse(raw));
+}
+
+async function callRecommendationModelWithTimeout(
+  model: string,
+  input: GenerateAiSeoRecommendationsInput,
+): Promise<{ recommendations: SeoRecommendation[]; summary: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("ai_generation_timeout"), MODEL_TIMEOUT_MS);
+  try {
+    return await callRecommendationModel(model, input, controller.signal);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error("ai_generation_timeout");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function cacheKey(input: GenerateAiSeoRecommendationsInput): string {
@@ -425,11 +448,11 @@ export async function generateAiSeoRecommendations(
     return buildFallbackRecommendations(input, "openai_not_configured");
   }
 
-  const models = [getPrimaryAiModel(), getFastAiModel()];
+  const models = Array.from(new Set([getFastAiModel(), getPrimaryAiModel()]));
   let lastError = "ai_generation_failed";
   for (const model of models) {
     try {
-      const output = await callRecommendationModel(model, input);
+      const output = await callRecommendationModelWithTimeout(model, input);
       const result: AiSeoRecommendationsResult = {
         source: "ai",
         model,

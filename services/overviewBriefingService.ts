@@ -1,4 +1,5 @@
 import type { SiteIntelligenceState } from "@/services/siteStateService";
+import type { SiteIntelligenceReport } from "@/services/siteIntelligenceEngine";
 
 export type OverviewBriefing = {
   monitoringStatus: {
@@ -36,16 +37,11 @@ export type OverviewBriefing = {
 
 type BuildOverviewBriefingInput = {
   siteState: SiteIntelligenceState;
+  intelligence: SiteIntelligenceReport;
   seoEnabled: boolean;
   canUseReputationPulse: boolean;
   showReputationPulseTeaser: boolean;
 };
-
-function seoIssueTotal(input: BuildOverviewBriefingInput): number {
-  const seo = input.siteState.seo.summary;
-  if (!seo) return 0;
-  return seo.broken_pages + seo.missing_meta + seo.performance_issues;
-}
 
 function buildMonitoringStatus(input: BuildOverviewBriefingInput): OverviewBriefing["monitoringStatus"] {
   const uptime = input.siteState.uptime;
@@ -94,6 +90,17 @@ function buildMonitoringStatus(input: BuildOverviewBriefingInput): OverviewBrief
 }
 
 function buildPriorityIssue(input: BuildOverviewBriefingInput): OverviewBriefing["priorityIssue"] {
+  const priority = input.intelligence.topPriority;
+  if (priority.severity !== "none") {
+    return {
+      severity: priority.severity,
+      title: priority.title,
+      description: priority.explanation,
+      cta: priority.recommendedAction,
+      href: priority.href,
+    };
+  }
+
   const uptime = input.siteState.uptime.summary;
   const seo = input.siteState.seo.summary;
   const reputation = input.siteState.reputation.summary;
@@ -157,6 +164,21 @@ function buildPriorityIssue(input: BuildOverviewBriefingInput): OverviewBriefing
 }
 
 function buildSiteMomentum(input: BuildOverviewBriefingInput): OverviewBriefing["siteMomentum"] {
+  if (input.intelligence.momentum.direction !== "unknown") {
+    return {
+      trend: input.intelligence.momentum.direction,
+      title:
+        input.intelligence.momentum.direction === "better"
+          ? "Traffic is climbing"
+          : input.intelligence.momentum.direction === "worse"
+            ? "Traffic dipped"
+            : "Traffic is steady",
+      description: input.intelligence.momentum.explanation,
+      cta: "View traffic",
+      href: input.intelligence.momentum.href ?? "#traffic",
+    };
+  }
+
   const analytics = input.siteState.analytics.summary;
   if (analytics?.trend === "up") {
     return {

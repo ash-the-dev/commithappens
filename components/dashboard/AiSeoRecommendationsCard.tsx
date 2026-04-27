@@ -48,6 +48,19 @@ function severityClass(severity: SeoRecommendation["severity"]): string {
   return "border-blue-300 bg-blue-50 text-blue-800";
 }
 
+function guideSteps(rec: SeoRecommendation): string[] {
+  return [
+    `Open the page shown above in your site editor or CMS.`,
+    rec.placement
+      ? `Find this spot: ${rec.placement}`
+      : "Find the page setting or content area related to the problem.",
+    rec.suggestedText
+      ? `Paste or type this exact text: "${rec.suggestedText}"`
+      : rec.suggestedFix,
+    "Save or publish the page, then run SEO Crawl again so Commit Happens can confirm the fix.",
+  ];
+}
+
 export function AiSeoRecommendationsCard({ siteId }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [payload, setPayload] = useState<ApiPayload | null>(null);
@@ -94,6 +107,7 @@ export function AiSeoRecommendationsCard({ siteId }: Props) {
   }, []);
 
   const recommendations = payload?.recommendations ?? [];
+  const noCrawlData = payload?.error === "no_crawl_data";
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.55)] sm:p-6">
@@ -179,8 +193,9 @@ export function AiSeoRecommendationsCard({ siteId }: Props) {
         </div>
       ) : recommendations.length === 0 && !error ? (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-          Nothing smart to say yet. Run a crawl with titles, meta descriptions, H1s, status codes, and links, then
-          make the AI earn rent.
+          {noCrawlData
+            ? "No crawl report data is available yet. Run SEO Crawl from the SEO controls, wait for it to save, then refresh this card."
+            : "Nothing smart to say yet. Run a crawl with titles, meta descriptions, H1s, status codes, and links, then make the AI earn rent."}
         </div>
       ) : (
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
@@ -245,14 +260,22 @@ export function AiSeoRecommendationsCard({ siteId }: Props) {
                 <button
                   type="button"
                   onClick={() => setExpandedId(isExpanded ? null : rec.id)}
-                  className="mt-4 text-xs font-semibold uppercase tracking-wide text-violet-700"
+                  className="mt-4 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700 transition hover:bg-violet-100"
                 >
-                  {isExpanded ? "Hide details" : "Why this matters"}
+                  {isExpanded ? "Hide guide" : "Guide me"}
                 </button>
                 {isExpanded ? (
                   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                    <p>{rec.whyItMatters}</p>
+                    <p><span className="font-semibold text-slate-950">Why it matters:</span> {rec.whyItMatters}</p>
                     {rec.estimatedImpact ? <p className="mt-2">{rec.estimatedImpact}</p> : null}
+                    <div className="mt-3">
+                      <p className="font-semibold text-slate-950">How to fix it:</p>
+                      <ol className="mt-2 list-decimal space-y-1 pl-5">
+                        {guideSteps(rec).map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
                   </div>
                 ) : null}
               </article>

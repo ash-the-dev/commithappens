@@ -4,6 +4,7 @@ import { getBillingAccess } from "@/lib/billing/access";
 import { getPlanMonitoringFrequency } from "@/lib/billing/plan-monitoring";
 import { getWebsiteForUser } from "@/lib/db/websites";
 import { getUptimeMonitorForWebsite, recordUptimeCheck } from "@/lib/db/uptime";
+import { createRunningScan, failScan } from "@/lib/db/scans";
 import { runUptimeProbe } from "@/lib/uptime/probe";
 import { urlFromSiteCandidate, validatePublicHttpUrl } from "@/lib/uptime/url-safety";
 
@@ -71,6 +72,12 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  const scan = await createRunningScan({
+    siteId: site.id,
+    scanType: "uptime",
+    source: "uptime-refresh",
+    rawResult: { monitorId: monitor.id, url: monitor.url },
+  });
   const candidate = urlFromSiteCandidate(monitor.url);
   const safe = candidate ? await validatePublicHttpUrl(candidate) : { ok: false as const, reason: "missing_url" };
   const result = safe.ok
@@ -86,6 +93,7 @@ export async function POST(request: Request): Promise<Response> {
 
   await recordUptimeCheck({
     monitorId: monitor.id,
+    scanId: scan.id,
     userId: monitor.user_id ?? session.user.id,
     siteId: monitor.site_id ?? site.id,
     url: checkedUrl,
@@ -95,6 +103,13 @@ export async function POST(request: Request): Promise<Response> {
     isUp: result.isUp,
     errorMessage: result.errorMessage,
     frequencyMinutes: Math.max(allowedFrequency, monitor.frequency_minutes),
+  }).catch(async (err) => {
+    await failScan({
+      scanId: scan.id,
+      errorMessage: "Uptime check failed while saving the result.",
+      rawResult: { error: err instanceof Error ? err.message : String(err) },
+    }).catch(() => undefined);
+    throw err;
   });
 
   return json({

@@ -81,9 +81,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     return json({ ok: true });
   }
 
-  const apiToken = process.env.APIFY_API_TOKEN?.trim();
+  const apiToken = process.env.APIFY_API_TOKEN?.trim() || process.env.APIFY_TOKEN?.trim();
   if (!apiToken) {
-    console.error("[seo-webhook] APIFY_API_TOKEN missing during succeeded webhook", { runId });
+    console.error("[seo-webhook] APIFY token missing during succeeded webhook", { runId });
     return json({ ok: true });
   }
   if (!datasetId) {
@@ -113,9 +113,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
   } catch (err) {
     console.error("[seo-webhook] failed to process Apify dataset", { runId, datasetId, err });
+    const detail = err instanceof Error && err.message ? err.message : "Crawl finished, but importing the report failed.";
     await markSeoCrawlRunFailedByProviderRunId({
       providerRunId: runId,
-      errorMessage: "Crawl finished, but importing the report failed.",
+      errorMessage: detail.slice(0, 1000),
     }).catch(() => undefined);
   }
 

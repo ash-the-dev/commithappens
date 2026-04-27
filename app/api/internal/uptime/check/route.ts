@@ -1,4 +1,5 @@
 import { getDueUptimeMonitors, recordUptimeCheck } from "@/lib/db/uptime";
+import { createRunningScan, failScan } from "@/lib/db/scans";
 import { runUptimeProbe } from "@/lib/uptime/probe";
 import { urlFromSiteCandidate, validatePublicHttpUrl } from "@/lib/uptime/url-safety";
 
@@ -30,6 +31,14 @@ export async function GET(request: Request): Promise<Response> {
     let down = 0;
 
     for (const monitor of monitors) {
+      const scan = monitor.site_id
+        ? await createRunningScan({
+            siteId: monitor.site_id,
+            scanType: "uptime",
+            source: "uptime-cron",
+            rawResult: { monitorId: monitor.id, url: monitor.url },
+          })
+        : null;
       const candidate = urlFromSiteCandidate(monitor.url);
       const safe = candidate ? await validatePublicHttpUrl(candidate) : { ok: false as const, reason: "missing_url" };
       const result = safe.ok
@@ -44,6 +53,7 @@ export async function GET(request: Request): Promise<Response> {
 
       await recordUptimeCheck({
         monitorId: monitor.id,
+        scanId: scan?.id,
         userId: monitor.user_id,
         siteId: monitor.site_id,
         url: checkedUrl,
@@ -53,6 +63,15 @@ export async function GET(request: Request): Promise<Response> {
         isUp: result.isUp,
         errorMessage: result.errorMessage,
         frequencyMinutes: monitor.frequency_minutes,
+      }).catch(async (err) => {
+        if (scan) {
+          await failScan({
+            scanId: scan.id,
+            errorMessage: "Uptime check failed while saving the result.",
+            rawResult: { error: err instanceof Error ? err.message : String(err) },
+          }).catch(() => undefined);
+        }
+        throw err;
       });
 
       checked += 1;

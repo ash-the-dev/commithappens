@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth/options";
 import { getBillingAccess } from "@/lib/billing/access";
 import { getWebsiteForUser } from "@/lib/db/websites";
 import { getPool } from "@/lib/db/pool";
+import { getLatestSeoCrawlRun } from "@/lib/db/seo-crawl-intelligence";
 import { requireFeature } from "@/lib/entitlements";
 import { buildResponseCodeReportFromParseResult } from "@/lib/seo-reporting";
 import { buildResponseCodeComparison } from "@/lib/seo/report";
@@ -72,13 +73,23 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const pool = getPool();
+    const latestRun = await getLatestSeoCrawlRun(siteId);
+    if (!latestRun) {
+      const fallback = buildResponseCodeReportFromParseResult(null);
+      return Response.json({
+        current: fallback,
+        previous: null,
+        comparison: buildResponseCodeComparison({ current: fallback, previous: null }),
+        ...fallback,
+      });
+    }
     const result = await pool.query<{ report_json: unknown; created_at: string }>(
       `SELECT report_json, created_at::text
        FROM response_code_reports
-       WHERE site_id = $1::text
+       WHERE crawl_run_id = $1::uuid
        ORDER BY created_at DESC
        LIMIT 2`,
-      [siteId],
+      [latestRun.id],
     );
     const rows = result.rows;
     const current = coerceReport(rows[0]?.report_json ?? null);

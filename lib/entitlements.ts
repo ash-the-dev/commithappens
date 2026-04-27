@@ -15,6 +15,7 @@ export type FeatureKey =
 export type LimitKey =
   | "maxSites"
   | "seoCrawlsPerMonth"
+  | "seoCrawlCooldownHours"
   | "recommendationRunsPerMonth"
   | "reputationWatchTerms"
   | "reputationMentionsPerRun"
@@ -67,6 +68,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     limits: {
       maxSites: 1,
       seoCrawlsPerMonth: 0,
+      seoCrawlCooldownHours: null,
       recommendationRunsPerMonth: 0,
       reputationWatchTerms: 0,
       reputationMentionsPerRun: 0,
@@ -93,6 +95,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     limits: {
       maxSites: 1,
       seoCrawlsPerMonth: 1,
+      seoCrawlCooldownHours: 24 * 30,
       recommendationRunsPerMonth: 1,
       reputationWatchTerms: 0,
       reputationMentionsPerRun: 0,
@@ -118,7 +121,8 @@ export const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     label: "Committed",
     limits: {
       maxSites: 3,
-      seoCrawlsPerMonth: 10,
+      seoCrawlsPerMonth: 4,
+      seoCrawlCooldownHours: 24 * 7,
       recommendationRunsPerMonth: 10,
       reputationWatchTerms: 3,
       reputationMentionsPerRun: 10,
@@ -144,7 +148,8 @@ export const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     label: "All In",
     limits: {
       maxSites: 10,
-      seoCrawlsPerMonth: 50,
+      seoCrawlsPerMonth: 30,
+      seoCrawlCooldownHours: 24,
       recommendationRunsPerMonth: 50,
       reputationWatchTerms: 10,
       reputationMentionsPerRun: 50,

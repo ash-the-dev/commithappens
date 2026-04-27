@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/options";
 import { getBillingAccess } from "@/lib/billing/access";
 import { requireFeature } from "@/lib/entitlements";
 import { getPool } from "@/lib/db/pool";
+import { getLatestSeoCrawlRun } from "@/lib/db/seo-crawl-intelligence";
 
 export const runtime = "nodejs";
 
@@ -38,16 +39,17 @@ async function getLatestStoredReportSummary(siteId: string): Promise<{
   latestPagesCrawled: number | null;
 }> {
   const pool = getPool();
+  const latestRun = await getLatestSeoCrawlRun(siteId);
   const result = await pool.query<{
     report_count: string;
     latest_report_at: string | null;
     latest_pages_crawled: string | null;
   }>(
     `SELECT
-       (SELECT count(*)::text FROM response_code_reports WHERE site_id = $1::text) AS report_count,
-       (SELECT created_at::text FROM response_code_reports WHERE site_id = $1::text ORDER BY created_at DESC LIMIT 1) AS latest_report_at,
-       (SELECT pages_crawled::text FROM seo_crawl_runs WHERE site_id = $1::text ORDER BY created_at DESC LIMIT 1) AS latest_pages_crawled`,
-    [siteId],
+       (SELECT count(*)::text FROM response_code_reports WHERE crawl_run_id = $1::uuid) AS report_count,
+       (SELECT created_at::text FROM response_code_reports WHERE crawl_run_id = $1::uuid ORDER BY created_at DESC LIMIT 1) AS latest_report_at,
+       (SELECT pages_crawled::text FROM seo_crawl_runs WHERE id = $1::uuid LIMIT 1) AS latest_pages_crawled`,
+    [latestRun?.id ?? null],
   );
   const row = result.rows[0];
   return {

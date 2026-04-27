@@ -1,8 +1,9 @@
 import {
-  getLatestCompletedScans,
+  getLatestScansByType,
   recordCompletedScan,
   type AnalyticsScanSummary,
   type CompletedScan,
+  type ScanLifecycleRecord,
   type ReputationScanSummary,
   type ScanType,
   type SeoScanSummary,
@@ -15,10 +16,12 @@ import type { RecentSocialMention } from "@/lib/social/socialMentionService";
 
 type SiteStateEntry<T extends ScanType> = {
   scanType: T;
+  startedAt: string | null;
   completedAt: string | null;
   summary: CompletedScan<T>["result_summary"] | null;
   source: string | null;
-  status: "ready" | "missing";
+  status: "ready" | "missing" | "running" | "failed";
+  errorMessage: string | null;
 };
 
 export type SiteIntelligenceState = {
@@ -69,30 +72,35 @@ function normalizeReputationSummary(value: unknown): ReputationScanSummary {
 
 function entry<T extends ScanType>(
   scanType: T,
-  scan: CompletedScan<T> | undefined,
+  scan: ScanLifecycleRecord<T> | undefined,
   normalize: (value: unknown) => CompletedScan<T>["result_summary"],
 ): SiteStateEntry<T> {
   if (!scan) {
     return {
       scanType,
+      startedAt: null,
       completedAt: null,
       summary: null,
       source: null,
       status: "missing",
+      errorMessage: null,
     };
   }
 
+  const isComplete = scan.status === "complete" && scan.completed_at && scan.result_summary;
   return {
     scanType,
+    startedAt: scan.started_at,
     completedAt: scan.completed_at,
-    summary: normalize(scan.result_summary),
+    summary: isComplete ? normalize(scan.result_summary) : null,
     source: scan.source,
-    status: "ready",
+    status: scan.status === "complete" ? "ready" : scan.status,
+    errorMessage: scan.error_message,
   };
 }
 
 export async function getSiteIntelligenceState(siteId: string): Promise<SiteIntelligenceState> {
-  const scans = await getLatestCompletedScans(siteId);
+  const scans = await getLatestScansByType(siteId);
   return {
     seo: entry("seo", scans.seo, normalizeSeoSummary),
     uptime: entry("uptime", scans.uptime, normalizeUptimeSummary),
@@ -157,7 +165,8 @@ export async function syncSiteStateFromCurrentData(input: {
         scanType: "seo",
         completedAt: input.latestCrawl.created_at,
         resultSummary: buildSeoScanSummary(input.latestCrawl),
-        source: "seo-crawl-run",
+        source: `seo-crawl:${input.latestCrawl.id}`,
+        rawResult: { crawlRunId: input.latestCrawl.id },
       }),
     );
   }
