@@ -1,3 +1,5 @@
+import { getPlanLimit } from "@/lib/entitlements";
+
 export type MonitoringPlan = "free" | "situationship" | "committed" | "unlimited" | "agency";
 
 /**
@@ -5,19 +7,6 @@ export type MonitoringPlan = "free" | "situationship" | "committed" | "unlimited
  * Unknown values intentionally fall back to free-tier behavior.
  */
 export function getPlanMonitoringFrequency(plan: string | null | undefined): number {
-  const normalized = (plan ?? "free").trim().toLowerCase();
-  switch (normalized) {
-    case "agency":
-    case "unlimited":
-      return 1;
-    case "committed":
-    case "pro":
-      return 5;
-    case "situationship":
-      return 15;
-    case "free":
-    default:
-      return 30;
-  }
+  return Math.max(1, Math.round((getPlanLimit(plan, "minUptimeIntervalSeconds") ?? 30 * 60) / 60));
 }
 

@@ -1,3 +1,5 @@
+import { getPlanEntitlements } from "@/lib/entitlements";
+
 export type PlanKey = "situationship" | "committed" | "unlimited";
 
 export type PlanEntitlements = {
@@ -10,21 +12,21 @@ export type PlanEntitlements = {
 export const BILLING_PLANS: Record<PlanKey, PlanEntitlements> = {
   situationship: {
     planKey: "situationship",
-    label: "Situationship",
-    seoEnabled: true,
-    maxSites: 1,
+    label: getPlanEntitlements("situationship").label,
+    seoEnabled: getPlanEntitlements("situationship").features.seoCrawl.enabled,
+    maxSites: getPlanEntitlements("situationship").limits.maxSites ?? 1,
   },
   committed: {
     planKey: "committed",
-    label: "Committed",
-    seoEnabled: true,
-    maxSites: 3,
+    label: getPlanEntitlements("committed").label,
+    seoEnabled: getPlanEntitlements("committed").features.seoCrawl.enabled,
+    maxSites: getPlanEntitlements("committed").limits.maxSites ?? 3,
   },
   unlimited: {
     planKey: "unlimited",
-    label: "All In",
-    seoEnabled: true,
-    maxSites: 10,
+    label: getPlanEntitlements("all_in").label,
+    seoEnabled: getPlanEntitlements("all_in").features.seoCrawl.enabled,
+    maxSites: getPlanEntitlements("all_in").limits.maxSites ?? 10,
   },
 };
 

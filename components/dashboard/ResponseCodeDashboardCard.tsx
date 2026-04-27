@@ -552,7 +552,7 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
             <h3 className="text-base font-semibold text-slate-900">Status code distribution (current)</h3>
             <p className="mt-1 text-xs text-slate-600">Where pages land right now: healthy, redirecting, or breaking.</p>
             <div className="mt-4 h-60">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
                 <PieChart>
                   <Pie data={donutData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={90} paddingAngle={2}>
                     {donutData.map((entry, index) => (
@@ -569,7 +569,7 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
             <h3 className="text-base font-semibold text-slate-900">Status code trend (previous vs current)</h3>
             <p className="mt-1 text-xs text-slate-600">Exact bucket movement between the last two crawls.</p>
             <div className="mt-4 h-60">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
                 <BarChart data={trendData}>
                   <XAxis dataKey="bucket" stroke="#64748b" fontSize={12} />
                   <YAxis stroke="#64748b" fontSize={12} />
@@ -587,7 +587,7 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
             <h3 className="text-base font-semibold text-slate-900">Issue breakdown</h3>
             <p className="mt-1 text-xs text-slate-600">Count by issue family so you can prioritize effort fast.</p>
             <div className="mt-4 h-64">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
                 <BarChart data={issueBreakdownData}>
                   <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
                   <YAxis stroke="#64748b" fontSize={12} />
@@ -602,7 +602,7 @@ export function ResponseCodeDashboardCard({ siteId = "default", onPageBreakdown 
             <h3 className="text-base font-semibold text-slate-900">Regression vs improvement</h3>
             <p className="mt-1 text-xs text-slate-600">What changed quality-wise since your previous crawl.</p>
             <div className="mt-4 h-64">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
                 <BarChart data={changeSplit}>
                   <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
                   <YAxis stroke="#64748b" fontSize={12} />

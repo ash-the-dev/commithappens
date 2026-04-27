@@ -1,11 +1,12 @@
 import { getBillingAccess } from "@/lib/billing/access";
+import { getUpgradeMessage, requireFeature } from "@/lib/entitlements";
 
 export async function getIntelligenceUpgradeResponse(): Promise<Response> {
   return Response.json(
     {
       ok: false,
       error: "upgrade_required",
-      message: "This feature is not included on the Free plan. Upgrade to unlock full intelligence, workflows, and case tools.",
+      message: getUpgradeMessage("dashboardIntelligence"),
     },
     { status: 403 },
   );
@@ -16,7 +17,7 @@ export async function requireIntelligenceForUser(
   userEmail: string | null | undefined,
 ): Promise<Response | null> {
   const billing = await getBillingAccess(userId, userEmail);
-  if (!billing.canUseIntelligence) {
+  if (!requireFeature(billing.accountKind, "dashboardIntelligence").ok) {
     return getIntelligenceUpgradeResponse();
   }
   return null;

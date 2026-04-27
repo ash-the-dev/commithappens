@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth/options'
 import { getBillingAccess } from '@/lib/billing/access'
 import { getPool } from '@/lib/db/pool'
 import { getWebsiteForUser } from '@/lib/db/websites'
+import { getPlanLimit, requireFeature } from '@/lib/entitlements'
 
 export const runtime = 'nodejs'
 
@@ -36,8 +37,9 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const billing = await getBillingAccess(session.user.id, session.user.email)
-  if (!billing.canUseReputationPulse) {
-    return json({ ok: false, error: 'reputation_pulse_locked' }, 403)
+  const featureAccess = requireFeature(billing.accountKind, 'reputationPulse')
+  if (!featureAccess.ok) {
+    return json({ ok: false, error: 'reputation_pulse_locked', message: featureAccess.message }, featureAccess.status)
   }
 
   const pool = getPool()
@@ -48,7 +50,8 @@ export async function POST(request: Request): Promise<Response> {
        AND is_active = true`,
     [site.id],
   )
-  if (Number(count.rows[0]?.count ?? 0) >= billing.reputationWatchTermLimit) {
+  const watchTermLimit = getPlanLimit(billing.accountKind, 'reputationWatchTerms') ?? 0
+  if (Number(count.rows[0]?.count ?? 0) >= watchTermLimit) {
     return json({ ok: false, error: 'watch_term_limit_reached' }, 429)
   }
 

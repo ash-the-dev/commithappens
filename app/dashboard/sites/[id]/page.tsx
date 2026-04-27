@@ -47,6 +47,7 @@ import { ResponseCodeDashboardCard } from "@/components/dashboard/ResponseCodeDa
 import { RefreshPageDataButton } from "@/components/dashboard/RefreshPageDataButton";
 import { InfoTooltip } from "@/components/dashboard/InfoTooltip";
 import { getBillingAccess } from "@/lib/billing/access";
+import { canUseFeature, getPlanLimit, shouldShowFeature } from "@/lib/entitlements";
 import { UptimeMonitorCard } from "@/components/dashboard/UptimeMonitorCard";
 import { ensureUptimeCheckForWebsite, getWebsiteUptimeHistory, getWebsiteUptimeSnapshot } from "@/lib/db/uptime";
 import { getPlanMonitoringFrequency } from "@/lib/billing/plan-monitoring";
@@ -63,7 +64,7 @@ import { AiSeoRecommendationsCard } from "@/components/dashboard/AiSeoRecommenda
 import { getMetricExplanation } from "@/lib/seo/crawl/explanations";
 import {
   SiteCommandCenterDashboard,
-  type CommandCenterSummaryCard,
+  type CommandCenterBriefingCard,
   type CommandCenterTab,
 } from "@/components/dashboard/SiteCommandCenterDashboard";
 import { ReputationPulsePanel } from "@/components/dashboard/ReputationPulsePanel";
@@ -74,6 +75,8 @@ import {
   shouldUseSmartMock,
 } from "@/lib/dashboard/smart-mock";
 import { getSocialMentionsNeedingAttention, getSocialWatchTermsForSite } from "@/lib/social/socialMentionService";
+import { buildOverviewBriefing, type OverviewBriefing } from "@/services/overviewBriefingService";
+import { syncSiteStateFromCurrentData } from "@/services/siteStateService";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -99,6 +102,34 @@ function relativeTime(iso: string | null | undefined, fallback = "Not run yet"):
   return compactDate(iso);
 }
 
+function briefingTimestamp(iso: string | null | undefined, fallback = "Not checked yet"): string {
+  if (!iso) return fallback;
+  return relativeTime(iso, fallback);
+}
+
+function tabFromHref(href: string | undefined, fallback: string): string {
+  return href?.startsWith("#") ? href.slice(1) : fallback;
+}
+
+function toneForMonitoring(status: OverviewBriefing["monitoringStatus"]["status"]): CommandCenterBriefingCard["statusTone"] {
+  if (status === "online") return "good";
+  if (status === "offline") return "bad";
+  return "neutral";
+}
+
+function toneForMomentum(trend: OverviewBriefing["siteMomentum"]["trend"]): CommandCenterBriefingCard["statusTone"] {
+  if (trend === "better") return "good";
+  if (trend === "worse") return "bad";
+  return "neutral";
+}
+
+function toneForSeverity(severity: "low" | "medium" | "high" | "none"): CommandCenterBriefingCard["statusTone"] {
+  if (severity === "high") return "bad";
+  if (severity === "medium") return "warn";
+  if (severity === "low") return "neutral";
+  return "good";
+}
+
 export default async function SiteDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
@@ -110,10 +141,10 @@ export default async function SiteDetailPage({ params }: Props) {
     notFound();
   }
   const billing = await getBillingAccess(session.user.id, session.user.email);
-  const seoEnabled = billing.seoEnabled;
-  const canUseIntelligence = billing.canUseIntelligence;
-  const canUseReputationPulse = billing.canUseReputationPulse;
-  const showReputationPulseTeaser = billing.showReputationPulseTeaser;
+  const seoEnabled = canUseFeature(billing.accountKind, "seoCrawl");
+  const canUseIntelligence = canUseFeature(billing.accountKind, "dashboardIntelligence");
+  const canUseReputationPulse = canUseFeature(billing.accountKind, "reputationPulse");
+  const showReputationPulseTeaser = shouldShowFeature(billing.accountKind, "reputationPulseTeaser");
 
   await ensureUptimeCheckForWebsite({
     websiteId: site.id,
@@ -158,6 +189,13 @@ export default async function SiteDetailPage({ params }: Props) {
   const lastSeoLabel = relativeTime(crawlSnapshot?.created_at, "No SEO crawl yet");
   const lastUptimeLabel = relativeTime(uptimeSnapshot?.lastCheckedAt, "No uptime check yet");
   const dashboardLoadedLabel = relativeTime(siteTrendsInitial.generatedAt, "Loaded just now");
+  const siteState = await syncSiteStateFromCurrentData({
+    siteId: site.id,
+    analytics,
+    uptimeSnapshot,
+    latestCrawl: crawlSnapshot,
+    socialMentions: socialMentionsNeedingAttention,
+  });
 
   let threatOverview = emptyWebsiteThreatOverview();
   let changeImpacts: Awaited<ReturnType<typeof getWebsiteChangeImpacts>> = [];
@@ -230,7 +268,6 @@ export default async function SiteDetailPage({ params }: Props) {
   const origin = await getRequestOrigin();
   const scriptSrc = `${origin}/tracker/wip.js`;
   const snippet = `<script async src="${scriptSrc}" data-site-key="${site.tracking_public_key}"></script>`;
-  const topChange = changeImpacts[0] ?? null;
 
   const apifyWorkerConfigured = Boolean(process.env.APIFY_API_TOKEN?.trim() && process.env.APIFY_ACTOR_ID?.trim());
   const crawlUnavailableReason = seoEnabled && !apifyWorkerConfigured
@@ -253,58 +290,79 @@ export default async function SiteDetailPage({ params }: Props) {
     ),
   ).slice(0, 4);
 
-  const summaryCards: CommandCenterSummaryCard[] = [
-    ...(seoEnabled
-      ? [
-          {
-            id: "seo-health",
-            title: "SEO Crawl",
-            value: crawlSnapshot ? `${Math.round(crawlSnapshot.health_score)}` : "No crawl",
-            caption: crawlSnapshot
-              ? `${crawlSnapshot.pages_crawled.toLocaleString("en-US")} pages, ${crawlIssueTotal.toLocaleString("en-US")} issues in latest crawl`
-              : "Run a crawl and let’s get something to judge.",
-            badge: crawlSnapshot ? compactDate(crawlSnapshot.created_at) : "Waiting",
-            targetTab: "seo-crawl",
-            accent: "cyan" as const,
-          },
-        ]
-      : []),
+  const overviewBriefing = buildOverviewBriefing({
+    siteState,
+    seoEnabled,
+    canUseReputationPulse,
+    showReputationPulseTeaser,
+  });
+  const briefingCards: CommandCenterBriefingCard[] = [
     {
-      id: "traffic",
-      title: "Traffic",
-      value: analytics.overview.sessions24h.toLocaleString("en-US"),
-      caption: `${analytics.overview.pageviews24h.toLocaleString("en-US")} pageviews in the last 24h`,
-      badge: "24h",
-      targetTab: "traffic",
-      accent: "blue",
+      id: "monitoring-status",
+      eyebrow: "Monitoring status",
+      title: overviewBriefing.monitoringStatus.title,
+      description: overviewBriefing.monitoringStatus.description,
+      statusLabel: overviewBriefing.monitoringStatus.status,
+      statusTone: toneForMonitoring(overviewBriefing.monitoringStatus.status),
+      meta: [
+        `Uptime: ${briefingTimestamp(overviewBriefing.monitoringStatus.lastUptimeCheck)}`,
+        `SEO crawl: ${briefingTimestamp(overviewBriefing.monitoringStatus.lastSeoCrawl, "Not crawled yet")}`,
+        uptimeSnapshot?.frequencyMinutes
+          ? `Checks every ${uptimeSnapshot.frequencyMinutes} min`
+          : "Frequency warming up",
+      ],
+      cta: overviewBriefing.monitoringStatus.cta,
+      targetTab: tabFromHref(overviewBriefing.monitoringStatus.href, "performance"),
+      accent: "cyan",
     },
     {
-      id: "performance",
-      title: "Performance",
-      value:
-        analytics.vitalAverages.length > 0
-          ? `${analytics.vitalAverages.length} vitals`
-          : analytics.uptime.avgResponse24h > 0
-            ? `${Math.round(analytics.uptime.avgResponse24h)}ms`
-            : "No samples",
-      caption: "Real-user vitals plus probe history. Directional, not gospel.",
-      badge: "Directional",
-      targetTab: "performance",
+      id: "priority-issue",
+      eyebrow: "Priority issue",
+      title: overviewBriefing.priorityIssue.title,
+      description: overviewBriefing.priorityIssue.description,
+      statusLabel: overviewBriefing.priorityIssue.severity === "none" ? "clear" : overviewBriefing.priorityIssue.severity,
+      statusTone: toneForSeverity(overviewBriefing.priorityIssue.severity),
+      meta: siteState.seo.summary
+        ? [`${crawlIssueTotal.toLocaleString("en-US")} crawl issues`, `${crawlSnapshot?.pages_crawled.toLocaleString("en-US") ?? "0"} pages checked`]
+        : ["No completed crawl yet", "Run a scan for real priorities"],
+      cta: overviewBriefing.priorityIssue.cta,
+      targetTab: tabFromHref(overviewBriefing.priorityIssue.href, seoEnabled ? "seo-crawl" : "performance"),
+      accent: "amber",
+    },
+    {
+      id: "site-momentum",
+      eyebrow: "Site momentum",
+      title: overviewBriefing.siteMomentum.title,
+      description: overviewBriefing.siteMomentum.description,
+      statusLabel: overviewBriefing.siteMomentum.trend,
+      statusTone: toneForMomentum(overviewBriefing.siteMomentum.trend),
+      meta: [
+        crawlRunHistory.length > 1 ? `${crawlRunHistory.length} crawl snapshots` : "Needs another scan",
+        uptimeHistory.length > 1 ? `${uptimeHistory.length} uptime checks loaded` : "Uptime history still young",
+      ],
+      cta: overviewBriefing.siteMomentum.cta,
+      targetTab: tabFromHref(overviewBriefing.siteMomentum.href, seoEnabled ? "seo-crawl" : "performance"),
       accent: "violet",
     },
-    ...(canUseIntelligence
-      ? [
-          {
-            id: "changes",
-            title: "Recent change",
-            value: topChange?.change_type ?? "None",
-            caption: topChange ? "Latest impact record is ready for judgment." : "No recent deploy notes. Bold strategy.",
-            badge: `${changeImpacts.length} records`,
-            targetTab: "changes",
-            accent: "pink" as const,
-          },
-        ]
-      : []),
+    {
+      id: "next-best-action",
+      eyebrow: "Next best action",
+      title: overviewBriefing.nextBestAction.title,
+      description: overviewBriefing.nextBestAction.description,
+      statusLabel: overviewBriefing.nextBestAction.status === "none" ? "ready" : overviewBriefing.nextBestAction.status,
+      statusTone: toneForSeverity(overviewBriefing.nextBestAction.status),
+      meta: [
+        `${analytics.overview.sessions24h.toLocaleString("en-US")} sessions in 24h`,
+        canUseReputationPulse
+          ? `${socialWatchTerms.filter((term) => term.is_active).length} reputation terms watched`
+          : showReputationPulseTeaser
+            ? "Reputation Pulse teaser available"
+            : "Reputation Pulse locked",
+      ],
+      cta: overviewBriefing.nextBestAction.cta,
+      targetTab: tabFromHref(overviewBriefing.nextBestAction.href, "traffic"),
+      accent: "pink",
+    },
   ];
   const issueBreakdown = [
     { name: "Critical", value: crawlSnapshot?.critical_count ?? 0 },
@@ -379,7 +437,7 @@ export default async function SiteDetailPage({ params }: Props) {
       </div>
 
       <SiteCommandCenterDashboard
-        summaryCards={summaryCards}
+        briefingCards={briefingCards}
         trends={siteTrendsInitial}
         topPages={analytics.topPages}
         issueBreakdown={issueBreakdown}
@@ -429,7 +487,7 @@ export default async function SiteDetailPage({ params }: Props) {
           <ReputationPulsePanel
             siteId={site.id}
             watchTerms={socialWatchTerms}
-            watchTermLimit={billing.reputationWatchTermLimit}
+            watchTermLimit={getPlanLimit(billing.accountKind, "reputationWatchTerms") ?? 0}
             mentions={socialAttentionMentions}
             smartMockIssues={useSmartMock ? SMART_MOCK_ATTENTION_ISSUES : undefined}
             isSmartMock={useSmartMock}

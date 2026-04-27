@@ -5,6 +5,7 @@ import { parseResponseCodesFromNormalizedRows } from "@/lib/seo/response-codes";
 import type { NormalizedCrawlRow } from "@/lib/seo/apify/normalize";
 import { buildSeoCrawlRunSummary, classifySeoCrawlPage } from "@/lib/seo/crawl/crawl-classification";
 import { urlsBelongToSameSite } from "@/lib/seo/crawl-request-security";
+import { recordCompletedScan } from "@/lib/db/scans";
 
 const ensured = new Set<string>();
 
@@ -434,6 +435,7 @@ export async function persistApifySeoResults(input: {
 
   const pool = getPool();
   const client = await pool.connect();
+  let completedScanSummary: { broken_pages: number; missing_meta: number; performance_issues: number } | null = null;
   try {
     await client.query("BEGIN");
     await client.query(`DELETE FROM seo_crawl_pages WHERE crawl_run_id = $1::uuid`, [input.crawlRunId]);
@@ -588,11 +590,24 @@ export async function persistApifySeoResults(input: {
         JSON.stringify(filteredResults.summary),
       ],
     );
+    completedScanSummary = {
+      broken_pages: summaryCounts.critical_count,
+      missing_meta: summaryCounts.warning_count,
+      performance_issues: summaryCounts.notice_count,
+    };
     await client.query("COMMIT");
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
+  }
+  if (completedScanSummary) {
+    await recordCompletedScan({
+      siteId: input.siteId,
+      scanType: "seo",
+      resultSummary: completedScanSummary,
+      source: "seo-crawl-pipeline",
+    });
   }
 }

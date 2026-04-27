@@ -45,8 +45,8 @@ function TrendCard(props: {
           {props.lastUpdated.slice(0, 10)}
         </p>
       </div>
-      <div className="ui-chart-shell mt-2 min-h-0 flex-1 p-2" style={{ height: CHART_H }}>
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+      <div className="ui-chart-shell mt-2 min-h-56 flex-1 p-2" style={{ height: CHART_H }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={160}>
           <LineChart data={props.data} margin={{ top: 6, right: 8, left: -8, bottom: 0 }}>
             <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
             <XAxis

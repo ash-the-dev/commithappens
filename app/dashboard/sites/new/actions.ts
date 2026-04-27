@@ -6,6 +6,7 @@ import { normalizePrimaryDomain } from "@/lib/domain";
 import { countWebsitesForUser, createWebsite } from "@/lib/db/websites";
 import { ensureUptimeCheckForWebsite } from "@/lib/db/uptime";
 import { getPlanMonitoringFrequency } from "@/lib/billing/plan-monitoring";
+import { getPlanLimit } from "@/lib/entitlements";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
@@ -21,10 +22,11 @@ export async function createWebsiteAction(
   }
   const billing = await getBillingAccess(session.user.id, session.user.email);
   const existingSites = await countWebsitesForUser(session.user.id);
-  if (existingSites >= billing.maxWebsites) {
+  const maxSites = getPlanLimit(billing.accountKind, "maxSites") ?? billing.maxWebsites;
+  if (existingSites >= maxSites) {
     return {
-      error: `Your current plan supports ${billing.maxWebsites} ${
-        billing.maxWebsites === 1 ? "site" : "sites"
+      error: `Your current plan supports ${maxSites} ${
+        maxSites === 1 ? "site" : "sites"
       }. Upgrade when you are ready to track more chaos.`,
     };
   }

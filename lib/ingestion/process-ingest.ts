@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { recordAnalyticsScanForWebsite } from "@/lib/db/analytics";
 import {
   classifyTrafficChannel,
   fingerprintFields,
@@ -652,6 +653,9 @@ export async function persistIngestBatch(
     );
 
     await client.query("COMMIT");
+    await recordAnalyticsScanForWebsite(websiteId).catch((err) => {
+      console.error("[ingest] analytics scan summary failed", { websiteId, err });
+    });
     return { ok: true };
   } catch (err) {
     await client.query("ROLLBACK");

@@ -1,4 +1,5 @@
 import { getPool } from "@/lib/db/pool";
+import { recordCompletedScan } from "@/lib/db/scans";
 import { CRAWLER_USER_AGENT_POSTGRES_REGEX } from "@/lib/ingestion/crawler-user-agent";
 
 type CountByDay = { day: string; count: string };
@@ -275,6 +276,22 @@ export async function getSiteAnalytics(websiteId: string): Promise<SiteAnalytics
       hasChecks24h: checks24h > 0,
     },
   };
+}
+
+export async function recordAnalyticsScanForWebsite(websiteId: string): Promise<void> {
+  const analytics = await getSiteAnalytics(websiteId);
+  const recent = analytics.timeline.at(-1)?.sessions ?? analytics.overview.sessions24h;
+  const previous = analytics.timeline.at(-2)?.sessions ?? recent;
+  await recordCompletedScan({
+    siteId: websiteId,
+    scanType: "analytics",
+    completedAt: new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000),
+    resultSummary: {
+      traffic_24h: analytics.overview.sessions24h,
+      trend: recent > previous ? "up" : recent < previous ? "down" : "flat",
+    },
+    source: "tracker-ingest",
+  });
 }
 
 export async function getSiteLiveActivity(

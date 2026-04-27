@@ -8,6 +8,7 @@ import {
   createPendingSeoCrawlRun,
   markSeoCrawlRunFailedById,
 } from "@/lib/db/seo-apify-pipeline";
+import { getPlanLimit, requireFeature } from "@/lib/entitlements";
 import { normalizePublicCrawlUrl, urlsBelongToSameSite } from "@/lib/seo/crawl-request-security";
 
 export const runtime = "nodejs";
@@ -86,14 +87,15 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const billing = await getBillingAccess(session.user.id, session.user.email);
-  if (!billing.seoEnabled) {
+  const featureAccess = requireFeature(billing.accountKind, "seoCrawl");
+  if (!featureAccess.ok) {
     return json(
       {
         ok: false,
-        code: "UPGRADE_REQUIRED",
-        message: "SEO crawling lives on the Committed plan. The bot has standards.",
+        code: featureAccess.code,
+        message: featureAccess.message,
       },
-      403,
+      featureAccess.status,
     );
   }
 
@@ -145,19 +147,18 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  if (billing.maxSeoCrawlsPerSitePerWeek != null) {
-    const windowDays = billing.accountKind === "situationship" ? 30 : 7;
-    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const monthlyCrawlLimit = getPlanLimit(billing.accountKind, "seoCrawlsPerMonth");
+  if (monthlyCrawlLimit != null) {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentRuns = await countSeoCrawlRunsForSiteSince(site.id, since);
-    if (recentRuns >= billing.maxSeoCrawlsPerSitePerWeek) {
+    if (recentRuns >= monthlyCrawlLimit) {
       return json(
         {
           ok: false,
-          code: billing.accountKind === "situationship" ? "MONTHLY_CRAWL_LIMIT_REACHED" : "WEEKLY_CRAWL_LIMIT_REACHED",
-          message:
-            billing.accountKind === "situationship"
-              ? "Situationship includes one SEO crawl with AI recommendations each month. Tiny leash, still useful."
-              : "Committed includes one SEO crawl with recommendations per site each week. All In keeps that weekly rhythm across more sites.",
+          code: "MONTHLY_CRAWL_LIMIT_REACHED",
+          message: `Your plan includes ${monthlyCrawlLimit} SEO ${
+            monthlyCrawlLimit === 1 ? "crawl" : "crawls"
+          } per month for this site. Tiny leash, still useful.`,
         },
         429,
       );

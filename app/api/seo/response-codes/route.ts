@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth/options";
 import { getBillingAccess } from "@/lib/billing/access";
 import { getWebsiteForUser } from "@/lib/db/websites";
 import { getPool } from "@/lib/db/pool";
+import { requireFeature } from "@/lib/entitlements";
 import { buildResponseCodeReportFromParseResult } from "@/lib/seo-reporting";
 import { buildResponseCodeComparison } from "@/lib/seo/report";
 import type { ResponseCodeReport } from "@/lib/seo/response-codes";
@@ -55,10 +56,11 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
   const billing = await getBillingAccess(userId, session.user.email);
-  if (!billing.seoEnabled) {
+  const featureAccess = requireFeature(billing.accountKind, "seoCrawl");
+  if (!featureAccess.ok) {
     return Response.json(
-      { ok: false, error: "upgrade_required", message: "SEO report access is on the Committed plan." },
-      { status: 403 },
+      { ok: false, error: "upgrade_required", message: featureAccess.message },
+      { status: featureAccess.status },
     );
   }
 

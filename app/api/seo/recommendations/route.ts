@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth/options";
 import { getBillingAccess } from "@/lib/billing/access";
 import { getPool } from "@/lib/db/pool";
 import { getWebsiteForUser } from "@/lib/db/websites";
+import { requireFeature } from "@/lib/entitlements";
 import {
   generateAiSeoRecommendations,
   type GenerateAiSeoRecommendationsInput,
@@ -86,14 +87,26 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const billing = await getBillingAccess(session.user.id, session.user.email);
-  if (!billing.canUseSEO || !billing.canUseIntelligence) {
+  const seoAccess = requireFeature(billing.accountKind, "seoCrawl");
+  const aiAccess = requireFeature(billing.accountKind, "aiInsights");
+  if (!seoAccess.ok) {
     return json(
       {
         ok: false,
         error: "upgrade_required",
-        message: "AI SEO recommendations are available on paid SEO plans.",
+        message: seoAccess.message,
       },
-      403,
+      seoAccess.status,
+    );
+  }
+  if (!aiAccess.ok) {
+    return json(
+      {
+        ok: false,
+        error: "upgrade_required",
+        message: aiAccess.message,
+      },
+      aiAccess.status,
     );
   }
 

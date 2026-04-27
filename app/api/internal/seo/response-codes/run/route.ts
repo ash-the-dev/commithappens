@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { spawn } from "node:child_process";
 import { authOptions } from "@/lib/auth/options";
 import { getBillingAccess } from "@/lib/billing/access";
+import { requireFeature } from "@/lib/entitlements";
 import { getPool } from "@/lib/db/pool";
 
 export const runtime = "nodejs";
@@ -128,14 +129,15 @@ export async function POST(request: Request): Promise<Response> {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
   const billing = await getBillingAccess(session.user.id, session.user.email);
-  if (!billing.seoEnabled) {
+  const featureAccess = requireFeature(billing.accountKind, "seoCrawl");
+  if (!featureAccess.ok) {
     return json(
       {
         ok: false,
         error: "upgrade_required",
-        message: "SEO crawling is available on the Committed plan.",
+        message: featureAccess.message,
       },
-      403,
+      featureAccess.status,
     );
   }
 

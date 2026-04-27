@@ -1,5 +1,6 @@
 import { getPool } from '@/lib/db/pool'
-import { getReputationPulseLimits } from '@/lib/billing/plan-limits'
+import { recordCompletedScan } from '@/lib/db/scans'
+import { canUseFeature, getPlanLimit, getPlanEntitlements } from '@/lib/entitlements'
 import { isAdminEmail } from '@/lib/admin'
 import type { Mention } from './providers'
 import { createMentionHash } from './hashMention'
@@ -249,16 +250,16 @@ export async function getActiveSocialWatchTerms(): Promise<{
 
   for (const row of result.rows) {
     const plan = effectivePlanForWatchTerm(row)
-    const limits = getReputationPulseLimits(plan)
+    const watchTermLimit = getPlanLimit(plan, 'reputationWatchTerms') ?? 0
     const ownerKey = row.site_id ?? row.user_id ?? row.owner_user_id ?? row.id
 
-    if (!limits.canUseReputationPulse || limits.reputationWatchTermLimit <= 0) {
+    if (!canUseFeature(plan, 'reputationPulse') || watchTermLimit <= 0) {
       skippedUnauthorized += 1
       continue
     }
 
     const used = countsByOwner.get(ownerKey) ?? 0
-    if (used >= limits.reputationWatchTermLimit) {
+    if (used >= watchTermLimit) {
       skippedUnauthorized += 1
       continue
     }
@@ -270,8 +271,8 @@ export async function getActiveSocialWatchTerms(): Promise<{
       site_id: row.site_id,
       term: row.term,
       term_type: row.term_type,
-      reputation_mentions_per_run: limits.reputationMentionsPerRun,
-      reputation_ai_enabled: limits.reputationAiEnrichmentEnabled,
+      reputation_mentions_per_run: getPlanLimit(plan, 'reputationMentionsPerRun') ?? 0,
+      reputation_ai_enabled: getPlanEntitlements(plan).reputationAiEnrichmentEnabled,
     })
   }
 
@@ -409,6 +410,30 @@ export async function runSocialMentionCheck(): Promise<SocialMentionCheckStats> 
       })
     }
   }
+
+  const affectedSiteIds = Array.from(new Set(watchTerms.flatMap((term) => (term.site_id ? [term.site_id] : []))))
+  await Promise.all(
+    affectedSiteIds.map(async (siteId) => {
+      const summary = await pool.query<{ mentions: string; flagged_mentions: string }>(
+        `SELECT
+           count(*)::text AS mentions,
+           count(*) FILTER (WHERE urgency = 'high' OR impact_score >= 60)::text AS flagged_mentions
+         FROM social_mentions
+         WHERE site_id = $1::uuid`,
+        [siteId],
+      )
+      const row = summary.rows[0]
+      await recordCompletedScan({
+        siteId,
+        scanType: 'reputation',
+        resultSummary: {
+          mentions: Number(row?.mentions ?? 0),
+          flagged_mentions: Number(row?.flagged_mentions ?? 0),
+        },
+        source: 'reputation-pulse',
+      })
+    }),
+  )
 
   return {
     ok: true,

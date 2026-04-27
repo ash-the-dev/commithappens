@@ -19,12 +19,15 @@ import {
 import type { SiteLiveActivityItem, SiteTopPage } from "@/lib/db/analytics";
 import type { SiteTrendsPayload } from "@/lib/dashboard/site-trends";
 
-export type CommandCenterSummaryCard = {
+export type CommandCenterBriefingCard = {
   id: string;
   title: string;
-  value: string;
-  caption: string;
-  badge: string;
+  eyebrow: string;
+  description: string;
+  statusLabel: string;
+  statusTone: "good" | "warn" | "bad" | "neutral";
+  meta: string[];
+  cta: string;
   targetTab?: string;
   accent: "cyan" | "blue" | "violet" | "amber" | "pink" | "slate";
 };
@@ -40,7 +43,7 @@ type IssueBreakdownItem = {
 };
 
 type Props = {
-  summaryCards: CommandCenterSummaryCard[];
+  briefingCards: CommandCenterBriefingCard[];
   trends: SiteTrendsPayload;
   topPages: SiteTopPage[];
   issueBreakdown: IssueBreakdownItem[];
@@ -50,13 +53,20 @@ type Props = {
   children: ReactNode;
 };
 
-const cardAccent: Record<CommandCenterSummaryCard["accent"], string> = {
+const cardAccent: Record<CommandCenterBriefingCard["accent"], string> = {
   cyan: "from-cyan-400 to-blue-500",
   blue: "from-blue-500 to-indigo-500",
   violet: "from-violet-500 to-fuchsia-500",
   amber: "from-amber-400 to-orange-400",
   pink: "from-fuchsia-400 to-pink-500",
   slate: "from-slate-400 to-slate-600",
+};
+
+const statusToneClass: Record<CommandCenterBriefingCard["statusTone"], string> = {
+  good: "border-emerald-300/60 bg-emerald-400/15 text-emerald-50",
+  warn: "border-amber-300/60 bg-amber-400/15 text-amber-50",
+  bad: "border-rose-300/60 bg-rose-400/15 text-rose-50",
+  neutral: "border-white/20 bg-white/10 text-white/80",
 };
 
 const donutColors = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#64748b"];
@@ -93,8 +103,8 @@ function HealthTrendCard({ trends }: { trends: SiteTrendsPayload }) {
           {trends.source === "demo" ? "Sample data" : trends.source === "partial" ? "Partial data" : "Stored data"}
         </span>
       </div>
-      <div className="ui-chart-shell mt-5 h-68 p-2">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+      <div className="ui-chart-shell mt-5 h-64 min-h-64 p-2">
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
           <LineChart data={chartData}>
             <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} />
@@ -158,9 +168,9 @@ function TopPagesCard({ topPages }: { topPages: SiteTopPage[] }) {
     <article className="ui-fade-in rounded-3xl border border-slate-200/70 bg-(--card-solid-bg) p-5 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.5)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-600">Top pages</p>
       <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Where attention is landing</h2>
-      <div className="ui-chart-shell mt-4 h-68 p-2">
+      <div className="ui-chart-shell mt-4 h-64 min-h-64 p-2">
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
             <BarChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 54 }}>
               <CartesianGrid stroke="rgba(15,23,42,0.055)" strokeDasharray="2 6" vertical={false} />
               <XAxis dataKey="label" angle={-28} textAnchor="end" height={58} tick={{ fill: "#64748b", fontSize: 10 }} tickLine={false} />
@@ -200,7 +210,7 @@ function IssueBreakdownCard({ issues }: { issues: IssueBreakdownItem[] }) {
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">Issue mix</p>
       <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Crawl issue breakdown</h2>
       <div className="mt-4 h-56">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
           <PieChart>
             <Pie data={data} dataKey="value" nameKey="name" innerRadius={54} outerRadius={86} paddingAngle={2}>
               {data.map((entry, index) => (
@@ -255,7 +265,7 @@ function CompactActivityCard({ items }: { items: SiteLiveActivityItem[] }) {
 }
 
 export function SiteCommandCenterDashboard({
-  summaryCards,
+  briefingCards,
   trends,
   topPages,
   issueBreakdown,
@@ -292,23 +302,33 @@ export function SiteCommandCenterDashboard({
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        {summaryCards.map((card) => (
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {briefingCards.map((card) => (
           <button
             key={card.id}
             type="button"
             onClick={() => card.targetTab && activateTab(card.targetTab, true)}
-            className="group rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-[0_18px_60px_-42px_rgba(15,23,42,0.7)] transition hover:-translate-y-0.5 hover:border-blue-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+            className="group flex min-h-72 flex-col rounded-3xl border border-white/12 bg-slate-950/72 p-4 text-left shadow-[0_22px_75px_-40px_rgba(0,0,0,0.9)] backdrop-blur transition hover:-translate-y-0.5 hover:border-cyan-200/45 hover:bg-slate-950/82 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 sm:p-5"
           >
             <div className={`h-1.5 rounded-full bg-linear-to-r ${cardAccent[card.accent]}`} aria-hidden />
             <div className="mt-4 flex items-start justify-between gap-3">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{card.title}</p>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                {card.badge}
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-100/70">{card.eyebrow}</p>
+              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusToneClass[card.statusTone]}`}>
+                {card.statusLabel}
               </span>
             </div>
-            <p className="mt-3 text-2xl font-black tracking-tight text-slate-950">{card.value}</p>
-            <p className="mt-2 line-clamp-2 text-sm text-slate-600">{card.caption}</p>
+            <h2 className="mt-3 text-xl font-black tracking-tight text-white">{card.title}</h2>
+            <p className="mt-2 line-clamp-4 text-sm leading-6 text-slate-200/82">{card.description}</p>
+            <div className="mt-4 space-y-1.5">
+              {card.meta.map((item) => (
+                <p key={item} className="text-xs font-medium text-slate-300/80">
+                  {item}
+                </p>
+              ))}
+            </div>
+            <span className="mt-auto inline-flex pt-5 text-sm font-bold text-cyan-100 transition group-hover:text-white">
+              {card.cta}
+            </span>
           </button>
         ))}
       </section>
